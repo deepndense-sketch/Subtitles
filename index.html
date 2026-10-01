@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Subtitle</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>Subtitle</h1>
+        <span id="versionLabel" class="muted small"></span>
+        <p class="muted">Move the next subtitle clip on your selected video track.</p>
+      </div>
+      <span id="stateBadge" class="badge off">INACTIVE</span>
+    </header>
+    <aside id="updateNotice" class="update-notice" hidden>
+      <strong id="updateNoticeText"></strong>
+      <button id="updateDownload" type="button">Download update</button>
+      <p id="updateInstallSteps" hidden>Save your project and close Premiere. Extract the downloaded ZIP, run install_extension.bat, then restart Premiere.</p>
+    </aside>
+    <nav class="tabs" role="tablist" aria-label="Subtitle tools">
+      <button id="extrasTab" role="tab" aria-controls="extrasPanel" aria-selected="true">Extra Sub</button>
+      <button id="sequenceTab" role="tab" aria-controls="sequencePanel" aria-selected="false" tabindex="-1">Adjust/Add Sub</button>
+    </nav>
+    <section class="card" id="extrasPanel" role="tabpanel" aria-labelledby="extrasTab">
+      <h2>Extra Sub</h2>
+      <div class="row track-row">
+        <label for="extraSourceTrackSelect">Subtitle track</label>
+        <select id="extraSourceTrackSelect"></select>
+        <button id="refreshExtraTracks" class="secondary">Refresh Tracks</button>
+      </div>
+      <button id="importExtras" class="primary">Import &amp; Align Extra Subs</button>
+      <p class="muted small">Detects the track with the most numbered subtitle PNGs and asks you to confirm. Missing extras go on a new track directly above it.</p>
+    </section>
+    <section class="card" id="sequencePanel" role="tabpanel" aria-labelledby="sequenceTab" hidden>
+      <h2>Adjust/Add Sub</h2>
+      <button id="activate" class="primary">Activate Subtitle Shortcuts</button>
+      <p class="muted small">Other keys turn shortcuts off. Arrow keys, Space, [ / ], and Ctrl+Z / Ctrl+Shift+Z keep them active. Click Activate again to resume.</p>
+      <div class="row track-row">
+        <label for="trackSelect">Shortcut track</label>
+        <select id="trackSelect"></select>
+        <button id="refreshTracks" class="secondary">Refresh Tracks</button>
+      </div>
+      <p class="muted small">Every clip on this track is treated as a subtitle. Existing clips work without importing again. Use a dedicated subtitle track.</p>
+      <details id="numberedImport" class="numbered-import">
+      <summary>Import numbered PNGs</summary>
+      <button id="chooseFolder" class="secondary">Choose PNG Folder</button>
+      <div id="folderPath" class="path">No folder selected.</div>
+      <button id="refreshFiles" class="secondary">Refresh PNG List</button>
+      <div id="fileResult" class="status">Choose a folder only if you want to import numbered PNG files.</div>
+      <div class="row track-row">
+        <label for="importTrackSelect">Import to track</label>
+        <select id="importTrackSelect"></select>
+      </div>
+      <button id="importAll" class="primary">Import All PNGs at Playhead</button>
+      <p class="muted small">Places every PNG in filename order as consecutive one-second clips. The destination range must be empty. Import uses Premiere’s separate history.</p>
+      </details>
+    </section>
+    <section class="card">
+      <h2>Status</h2>
+      <div id="status" class="status">Ready. v1.6.0 — choose a subtitle track to import extras.</div>
+      <div id="currentFile" class="current">No operation yet.</div>
+    </section>
+    <details id="manualControls" class="card manual-controls">
+      <summary>Controls &amp; shortcut help</summary>
+      <div class="controls-content">
+      <div class="manual-button-grid">
+      <button id="advance" class="key-button">Bring Next Subtitle to Playhead ←</button>
+      <button id="previous" class="key-button">Bring Previous Subtitle to Playhead →</button>
+      <button id="undo" class="key-button">Undo Subtitle Edit (Ctrl+Z)</button>
+      <button id="redo" class="key-button">Redo Subtitle Edit (Ctrl+Shift+Z)</button>
+      <button id="trimLeft" class="key-button">Trim Left Edge to Playhead ([)</button>
+      <button id="trimRight" class="key-button">Trim Right Edge to Playhead (])</button>
+      </div>
+      <h4>How the arrow keys choose subtitles</h4>
+      <p class="muted small">Left Arrow brings the nearest clip starting to the right of the playhead. Right Arrow brings the nearest clip ending to the left of the playhead.</p>
+      <p class="muted small">Its beginning is extended back to the playhead while its end stays in place. Only the subtitle covering the playhead is trimmed to end there. Right Arrow extends the previous subtitle's end to the playhead and trims the covering subtitle's start if necessary. Undo restores both edits.</p>
+      <p class="muted small">While active in Premiere: ← brings the next subtitle; → brings the previous subtitle; [ trims left; ] trims right. L and R keep their normal Premiere functions. Ctrl+Z / Ctrl+Shift+Z undo / redo subtitle edits only. Deactivate to release all subtitle shortcuts.</p>
+      <p class="muted small">Use this panel's Undo for tool edits. Premiere's Edit → Undo uses a separate history and may undo an older edit. History lasts until the panel or project is reloaded. Existing overlaps must be recovered from a known-good project backup.</p>
+      </div>
+    </details>
+  </main>
+  <dialog id="extraConfirm" class="extra-confirm" aria-labelledby="extraConfirmTitle" aria-describedby="extraConfirmPlan">
+    <h2 id="extraConfirmTitle">Subtitle track detected</h2>
+    <div class="confirm-track-row">
+      <strong id="extraConfirmTrack" class="confirm-track"></strong>
+      <span id="extraConfirmCount"></span>
+    </div>
+    <p id="extraConfirmIssue" class="confirm-issue" hidden></p>
+    <p id="extraConfirmPlan"></p>
+    <p class="confirm-question">Is this the correct subtitle track?</p>
+    <div class="confirm-actions">
+      <button id="extraConfirmCancel" type="button">Cancel</button>
+      <button id="extraConfirmAccept" type="button">Yes, import extras</button>
+    </div>
+  </dialog>
+  <dialog id="updateDialog" class="extra-confirm" aria-labelledby="updateDialogVersion">
+    <h2 id="updateDialogVersion">Subtitle update available</h2>
+    <p>Download the new version to update Subtitle.</p>
+    <p>Save your project and close Premiere. Extract the ZIP, run <strong>install_extension.bat</strong>, then restart Premiere.</p>
+    <div class="confirm-actions">
+      <button id="updateLater" type="button">Later</button>
+      <button id="updateDialogDownload" type="button">Download update</button>
+    </div>
+  </dialog>
+  <script src="lib/subtitle-index.js"></script>
+  <script src="js/updates.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
