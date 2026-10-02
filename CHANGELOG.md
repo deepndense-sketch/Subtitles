@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1
+
+- Clarify the Extra Sub track label: Choose the track where your main subs are.
+
 ## 1.6.0
 
 - Check for published updates when the panel opens and hourly while it stays open.
