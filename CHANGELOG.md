@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.3
+
+- Use the ExportBackup-style independent hidden PowerShell launcher so the helper starts and survives the panel closing.
+
+- Wait for the installer helper to confirm readiness; capture errors and time out failed launches.
+- Persist pending updates, block duplicate attempts, and show failures with Retry update.
+- Read the installed version fresh and clear obsolete notices; remember shown prompts across panel reopens.
+- Check GitHub when the panel opens; monitor installation status without hourly network polling.
+
 ## 1.7.2
 
 - Change the Extra Sub track label to Your main subs are at.

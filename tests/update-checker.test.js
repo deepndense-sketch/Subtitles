@@ -28,19 +28,30 @@ function transport(status, body) {
   await assert.rejects(checker.check('1.6.0',transport(200,'bad JSON')));
   const elements={}, intervals=[], opened=[];
   function element(id) {return elements[id]||(elements[id]={hidden:true,events:{},addEventListener(k,f){this.events[k]=f;},showModal(){this.open=true;},close(){this.open=false;}});}
-  const context=vm.createContext({active:true,busy:false,document:{getElementById:element,querySelector:()=>null},
+  let installedVersion='1.6.0', pendingState=null;const stored={};
+  const fakeUpdater={readVersion:()=>installedVersion,pending:()=>pendingState,prepare:async(root,version)=>{opened.push({root,version});pendingState={version,state:'waiting',message:'Save and close Premiere to finish installing.'};return {};}};
+  const context=vm.createContext({active:true,busy:false,localStorage:{getItem:k=>stored[k],setItem:(k,v)=>stored[k]=v},document:{getElementById:element,querySelector:()=>null},
     window:{addEventListener(){},cep:{util:{openURLInDefaultBrowser:url=>opened.push(url)}}},
-    setInterval:f=>intervals.push(f),clearInterval(){},require:name=>name==='path' ? path : name==='fs' ? fs : name.endsWith('package.json') ? {version:'1.6.0'} : name.endsWith('cep-updater.js') ? {prepare:async(root,version)=>{opened.push({root,version});return {status:path.join(__dirname,'nonexistent-update-status.json')};}} : {check:async()=>({version:'1.7.0'})}});
+    setInterval:f=>intervals.push(f),clearInterval(){},require:name=>name==='path' ? path : name.endsWith('cep-updater.js') ? fakeUpdater : {isNewer:checker.isNewer,check:async()=>checker.isNewer('1.7.0',installedVersion)?{version:'1.7.0'}:null}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/updates.js'),'utf8'),context);
   vm.runInContext('SubtitleUpdates.start("/extension")',context);
   await new Promise(resolve=>setImmediate(resolve));
   assert.strictEqual(element('updateNotice').hidden,false);
   assert(!element('updateDialog').open,'do not interrupt active subtitle editing');
-  context.active=false;intervals[1]();
+  context.active=false;intervals[0]();
   assert(element('updateDialog').open,'prompt after editing is inactive');
   await element('updateDialogDownload').events.click();assert.strictEqual(opened.length,1);
   assert.strictEqual(opened[0].version,'1.7.0');
   assert(element('updateInstallSteps').textContent.includes('close Premiere'));
-  element('updateLater').events.click();intervals[1]();assert(!element('updateDialog').open,'prompt once per version per panel session');
+  element('updateLater').events.click();intervals[0]();assert(!element('updateDialog').open,'pending update must not prompt');
+  vm.runInContext('SubtitleUpdates.start("/extension")',context);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert(!element('updateDialog').open,'reopening while pending must not prompt');
+  assert(element('updateDownload').disabled,'prevent duplicate update attempt');
+  pendingState={version:'1.7.0',state:'failed',message:'Helper failed to start'};intervals[0]();
+  assert.strictEqual(element('updateDownload').textContent,'Retry update');
+  assert(!element('updateDialog').open,'failed update shows status rather than popup');
+  installedVersion='1.7.0';pendingState=null;intervals[0]();
+  assert.strictEqual(element('updateNotice').hidden,true,'fresh installed version clears the banner');
   console.log('update checking and prompt tests passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

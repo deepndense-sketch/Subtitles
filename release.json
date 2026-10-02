@@ -1,11 +1,11 @@
 {
-  "version": "1.7.2",
+  "version": "1.7.3",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1544,
-      "sha256": "275efd545e208d788cab3e92cbc1a536adcda0565e38a38b9eb66e5883276224"
+      "sha256": "04bf0844f396c6bc4ea38bbd4cdacb351efdac1f406241d95e9699a62e02fc6f"
     },
     {
       "path": "css/style.css",
@@ -15,7 +15,7 @@
     {
       "path": "index.html",
       "size": 6934,
-      "sha256": "b14d5b912b10b649328b9d13cc0565662755706f6efa786b146ce8dd7c67a499"
+      "sha256": "9cf2486857da6d7ce8e64df99e320c7fcd80a1280f1d6e01a2f88c159a5650bd"
     },
     {
       "path": "js/main.js",
@@ -24,8 +24,8 @@
     },
     {
       "path": "js/updates.js",
-      "size": 3195,
-      "sha256": "ff3ed3c6a61b83f8100dbeccc5e9862c81d149f4499ffa3f172ea38046d6ecaa"
+      "size": 3466,
+      "sha256": "ad737d948478bda5334a31686b03e0b1b667156838b4c0525da0a2cf7a1e7a70"
     },
     {
       "path": "jsx/subtitle_navigator.jsx",
@@ -44,8 +44,8 @@
     },
     {
       "path": "lib/cep-updater.js",
-      "size": 4614,
-      "sha256": "ccb4a4ffbf73e32cb91e5cf00a80db4b63afee798dbbc7db66cca8d5ebd67a4b"
+      "size": 8763,
+      "sha256": "9d7bd406fcbaeda47d5a96a517c56465eb9c4b4414f77b66fb9fa6a27edf37f6"
     },
     {
       "path": "native/KeyListener.exe",
@@ -54,13 +54,13 @@
     },
     {
       "path": "native/install-update.ps1",
-      "size": 4068,
-      "sha256": "755a1de951d0caa9009b65ab233a8da84e3ae747016bdc6e79602214cc4fa32b"
+      "size": 4450,
+      "sha256": "3d8845e3635c559126a77d03ceaee6e1e7ca05f7d6469e2e55b0b91ce57f37bc"
     },
     {
       "path": "package.json",
       "size": 459,
-      "sha256": "502f0eaf1be6df14d1be70b0b554125ba2bb0548dc96bfed2ca39d9da1e44cc8"
+      "sha256": "fee52c2ede85138ed7c21986cb043e5c1225ea52c617d622a7302620bce903c7"
     }
   ]
 }

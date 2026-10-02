@@ -8,12 +8,15 @@ function Get-UpdateHash($filePath) {
     finally { $stream.Dispose(); $sha.Dispose() }
 }
 function Write-UpdateStatus($state, $message) {
-    [IO.File]::WriteAllText($status, (@{state=$state;message=$message} | ConvertTo-Json -Compress))
+    $tempStatus = $status + '.tmp'
+    [IO.File]::WriteAllText($tempStatus, (@{state=$state;message=$message;pid=$PID} | ConvertTo-Json -Compress))
+    Move-Item -LiteralPath $tempStatus -Destination $status -Force
 }
 $changed = @()
-$mutex = New-Object System.Threading.Mutex($false, 'Local\SubtitleCEPUpdate')
+$mutex = $null
 $ownsMutex = $false
 try {
+    $mutex = New-Object System.Threading.Mutex($false, 'Local\SubtitleCEPUpdate')
     $ownsMutex = $mutex.WaitOne(0)
     if (!$ownsMutex) { throw 'Another Subtitle update is already waiting. Close Premiere to finish it.' }
     $plan = Get-Content -LiteralPath (Join-Path $job 'plan.json') -Raw | ConvertFrom-Json
@@ -30,7 +33,11 @@ try {
         if ((Get-UpdateHash $inputFile) -ne $file.sha256) { throw 'Update file verification failed.' }
     }
     Write-UpdateStatus 'waiting' 'Update ready. Save and close Premiere to finish installing.'
-    while (Get-Process -Name 'Adobe Premiere Pro','Premiere' -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 2 }
+    while (Get-Process -Name 'Adobe Premiere Pro','Premiere' -ErrorAction SilentlyContinue) {
+        if (Test-Path -LiteralPath (Join-Path $job 'cancel')) { throw 'Update cancelled before installation.' }
+        Start-Sleep -Seconds 2
+    }
+    if (Test-Path -LiteralPath (Join-Path $job 'cancel')) { throw 'Update cancelled before installation.' }
     # Stop only this extension's listener through its own stop signal.
     $stateFolder = Join-Path $env:LOCALAPPDATA 'PremiereSubtitleNavigator'
     [IO.File]::WriteAllText((Join-Path $stateFolder 'stop'), 'stop')
@@ -64,5 +71,5 @@ try {
     exit 1
 } finally {
     if ($ownsMutex) { $mutex.ReleaseMutex() }
-    $mutex.Dispose()
+    if ($mutex) { $mutex.Dispose() }
 }

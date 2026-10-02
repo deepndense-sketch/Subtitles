@@ -1,6 +1,6 @@
 {
   "name": "premiere-subtitle-navigator",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "private": true,
   "description": "Premiere Pro CEP panel for loading and advancing numbered subtitle PNGs with Left Arrow.",
   "scripts": {
