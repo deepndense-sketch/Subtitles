@@ -1,4 +1,66 @@
 {
-  "version": "1.6.1",
-  "repository": "https://github.com/deepndense-sketch/Subtitles"
+  "version": "1.7.0",
+  "repository": "https://github.com/deepndense-sketch/Subtitles",
+  "files": [
+    {
+      "path": "CSXS/manifest.xml",
+      "size": 1544,
+      "sha256": "e1b95238aecbda1153c05ec3dc411c7a6e2348c7e20fa5501f103a6d976dd941"
+    },
+    {
+      "path": "css/style.css",
+      "size": 6986,
+      "sha256": "f4af3022454743ac0c52b32f6b22eb98b0c6c2a749782685830e71ce5315b7f2"
+    },
+    {
+      "path": "index.html",
+      "size": 6954,
+      "sha256": "0a6ff1dd1be91488b833adb19eaf58a1e490585893b52b9e15054e30f82189e5"
+    },
+    {
+      "path": "js/main.js",
+      "size": 20310,
+      "sha256": "3428d430d4e103b7b9cc31770c26e292ed7335f09a158bd488ef12bc20fc8d86"
+    },
+    {
+      "path": "js/updates.js",
+      "size": 3195,
+      "sha256": "ff3ed3c6a61b83f8100dbeccc5e9862c81d149f4499ffa3f172ea38046d6ecaa"
+    },
+    {
+      "path": "jsx/subtitle_navigator.jsx",
+      "size": 42408,
+      "sha256": "91d2e90362a4dae9f1332738c7b6e92cbed009b10163a55202839f9317136ef7"
+    },
+    {
+      "path": "lib/subtitle-index.js",
+      "size": 2257,
+      "sha256": "9c369e476ba273eeb6009b5ed40b2f3605fdd611ffee43f6092c230d06ef8718"
+    },
+    {
+      "path": "lib/update-checker.js",
+      "size": 1850,
+      "sha256": "7b259379f2aa6f06a77f4e0a26abec45dba8034368cc956fe1ec8e20ca877031"
+    },
+    {
+      "path": "lib/cep-updater.js",
+      "size": 4614,
+      "sha256": "ccb4a4ffbf73e32cb91e5cf00a80db4b63afee798dbbc7db66cca8d5ebd67a4b"
+    },
+    {
+      "path": "native/KeyListener.exe",
+      "size": 8704,
+      "sha256": "b4b66fce552ff7e75c04cddc7ac1712854e287dd1ea6a93fa41f7904cbc86eea"
+    },
+    {
+      "path": "native/install-update.ps1",
+      "size": 4068,
+      "sha256": "755a1de951d0caa9009b65ab233a8da84e3ae747016bdc6e79602214cc4fa32b"
+    },
+    {
+      "path": "package.json",
+      "size": 459,
+      "sha256": "6cdda903fac760e394124ea5c033ae03238b20ec759f6fdabb30f0787b394ab2"
+    }
+  ]
 }

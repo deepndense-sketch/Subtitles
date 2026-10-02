@@ -17,8 +17,8 @@
     </header>
     <aside id="updateNotice" class="update-notice" hidden>
       <strong id="updateNoticeText"></strong>
-      <button id="updateDownload" type="button">Download update</button>
-      <p id="updateInstallSteps" hidden>Save your project and close Premiere. Extract the downloaded ZIP, run install_extension.bat, then restart Premiere.</p>
+      <button id="updateDownload" type="button">Update CEP</button>
+      <p id="updateInstallSteps" hidden>The update installs directly into the Subtitle CEP folder after you close Premiere.</p>
     </aside>
     <nav class="tabs" role="tablist" aria-label="Subtitle tools">
       <button id="extrasTab" role="tab" aria-controls="extrasPanel" aria-selected="true">Extra Sub</button>
@@ -60,7 +60,7 @@
     </section>
     <section class="card">
       <h2>Status</h2>
-      <div id="status" class="status">Ready. v1.6.1 — choose a subtitle track to import extras.</div>
+      <div id="status" class="status">Ready. v1.7.0 — choose a subtitle track to import extras.</div>
       <div id="currentFile" class="current">No operation yet.</div>
     </section>
     <details id="manualControls" class="card manual-controls">
@@ -98,11 +98,11 @@
   </dialog>
   <dialog id="updateDialog" class="extra-confirm" aria-labelledby="updateDialogVersion">
     <h2 id="updateDialogVersion">Subtitle update available</h2>
-    <p>Download the new version to update Subtitle.</p>
-    <p>Save your project and close Premiere. Extract the ZIP, run <strong>install_extension.bat</strong>, then restart Premiere.</p>
+    <p>Update Subtitle directly in its CEP folder.</p>
+    <p>Click Update CEP to prepare the files. Then save your project and close Premiere. The update installs automatically with a backup; reopen Premiere after a few seconds.</p>
     <div class="confirm-actions">
       <button id="updateLater" type="button">Later</button>
-      <button id="updateDialogDownload" type="button">Download update</button>
+      <button id="updateDialogDownload" type="button">Update CEP</button>
     </div>
   </dialog>
   <script src="lib/subtitle-index.js"></script>

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest Version="7.0"
  ExtensionBundleId="com.deepndense.premiere.subtitleNavigator"
- ExtensionBundleVersion="1.6.1"
+ ExtensionBundleVersion="1.7.0"
  ExtensionBundleName="Subtitle">
   <ExtensionList>
-    <Extension Id="com.deepndense.premiere.subtitleNavigator.panel" Version="1.6.1"/>
+    <Extension Id="com.deepndense.premiere.subtitleNavigator.panel" Version="1.7.0"/>
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

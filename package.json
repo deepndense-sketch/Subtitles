@@ -1,9 +1,9 @@
 {
   "name": "premiere-subtitle-navigator",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "description": "Premiere Pro CEP panel for loading and advancing numbered subtitle PNGs with Left Arrow.",
   "scripts": {
-    "test": "node tests/subtitle-index.test.js && node tests/navigation.test.js && node tests/extras.test.js && node tests/extras-panel.test.js && node tests/update-checker.test.js && node tests/version.test.js"
+    "test": "node tests/subtitle-index.test.js && node tests/navigation.test.js && node tests/extras.test.js && node tests/extras-panel.test.js && node tests/update-checker.test.js && node tests/version.test.js && node tests/cep-updater.test.js"
   }
 }

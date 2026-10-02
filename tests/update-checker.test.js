@@ -30,7 +30,7 @@ function transport(status, body) {
   function element(id) {return elements[id]||(elements[id]={hidden:true,events:{},addEventListener(k,f){this.events[k]=f;},showModal(){this.open=true;},close(){this.open=false;}});}
   const context=vm.createContext({active:true,busy:false,document:{getElementById:element,querySelector:()=>null},
     window:{addEventListener(){},cep:{util:{openURLInDefaultBrowser:url=>opened.push(url)}}},
-    setInterval:f=>intervals.push(f),clearInterval(){},require:name=>name==='path' ? path : name.endsWith('package.json') ? {version:'1.6.0'} : {check:async()=>({version:'1.7.0',url:'https://github.com/deepndense-sketch/Subtitles/archive/refs/tags/v1.7.0.zip'})}});
+    setInterval:f=>intervals.push(f),clearInterval(){},require:name=>name==='path' ? path : name==='fs' ? fs : name.endsWith('package.json') ? {version:'1.6.0'} : name.endsWith('cep-updater.js') ? {prepare:async(root,version)=>{opened.push({root,version});return {status:path.join(__dirname,'nonexistent-update-status.json')};}} : {check:async()=>({version:'1.7.0'})}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/updates.js'),'utf8'),context);
   vm.runInContext('SubtitleUpdates.start("/extension")',context);
   await new Promise(resolve=>setImmediate(resolve));
@@ -38,7 +38,9 @@ function transport(status, body) {
   assert(!element('updateDialog').open,'do not interrupt active subtitle editing');
   context.active=false;intervals[1]();
   assert(element('updateDialog').open,'prompt after editing is inactive');
-  element('updateDialogDownload').events.click();assert.strictEqual(opened.length,1);
+  await element('updateDialogDownload').events.click();assert.strictEqual(opened.length,1);
+  assert.strictEqual(opened[0].version,'1.7.0');
+  assert(element('updateInstallSteps').textContent.includes('close Premiere'));
   element('updateLater').events.click();intervals[1]();assert(!element('updateDialog').open,'prompt once per version per panel session');
   console.log('update checking and prompt tests passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
