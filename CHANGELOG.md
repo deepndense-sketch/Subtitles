@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.1
+
+- Shorten the Extra Sub track label to Choose main sub track.
+
 ## 1.7.0
 
 - Replace manual ZIP downloads with Update CEP: prepare verified files and install directly after Premiere closes.
