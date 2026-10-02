@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.4
+
+- Add a colon to the main subtitle track label for an update-flow test.
+
 ## 1.7.3
 
 - Use the ExportBackup-style independent hidden PowerShell launcher so the helper starts and survives the panel closing.
