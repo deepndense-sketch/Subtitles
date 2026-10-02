@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.2
+
+- Change the Extra Sub track label to Your main subs are at.
+
 ## 1.7.1
 
 - Shorten the Extra Sub track label to Choose main sub track.
