@@ -113,14 +113,112 @@ async function refreshTracks() {
   return true;
 }
 
-function confirmExtraImport(trackIndex, count, issue) {
+// Read-only comparison; full paths keep identical names in different folders distinct.
+function syncPathKey(value) { return String(value).replace(/\\/g, "/").toLowerCase(); }
+function syncReadDir(folder) { return new Promise((resolve, reject) => fs.readdir(folder, (error, names) => error ? reject(error) : resolve(names))); }
+function syncStat(file) { return new Promise((resolve, reject) => fs.stat(file, (error, info) => error ? reject(error) : resolve(info))); }
+async function compareLocalSources(snapshot) {
+  const seen = new Set(snapshot.sequencePaths.map(syncPathKey));
+  const folders = new Map();
+  snapshot.paths.forEach(file => {
+    const folder = path.dirname(file), key = syncPathKey(folder);
+    if (!folders.has(key)) folders.set(key, {path: folder, sources: new Map(), missingSequence: [], missingDisk: [], issues: []});
+    folders.get(key).sources.set(syncPathKey(file), file);
+  });
+  for (const group of folders.values()) {
+    let names;
+    try { names = await syncReadDir(group.path); }
+    catch (error) {
+      group.issues.push("Cannot read folder (" + (error.code || "error") + "). Check the drive, folder path, or permissions; files have not been marked missing.");
+      continue;
+    }
+    for (const name of names.filter(name => /\.png$/i.test(name))) {
+      const file = path.join(group.path, name);
+      if (seen.has(syncPathKey(file))) continue;
+      try { if ((await syncStat(file)).isFile()) group.missingSequence.push(name); }
+      catch (error) { group.issues.push("Could not check " + name + " (" + (error.code || "error") + ")."); }
+    }
+    for (const file of group.sources.values()) {
+      try { if (!(await syncStat(file)).isFile()) group.missingDisk.push(path.basename(file)); }
+      catch (error) {
+        if (error.code === "ENOENT" || error.code === "ENOTDIR") group.missingDisk.push(path.basename(file));
+        else group.issues.push("Could not check " + path.basename(file) + " (" + (error.code || "error") + ").");
+      }
+    }
+    group.missingSequence.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+    group.missingDisk.sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+  }
+  return Array.from(folders.values());
+}
+function renderLocalSync(snapshot, groups) {
+  const container = $("syncGroups");
+  container.innerHTML = "";
+  let absent = 0, missing = 0, issues = snapshot.unresolved.length;
+  function add(parent, tag, text, className) {
+    const node = document.createElement(tag); node.textContent = text;
+    if (className) node.className = className;
+    parent.appendChild(node); return node;
+  }
+  function list(parent, title, names) {
+    if (!names.length) return;
+    add(parent, "p", title + " (" + names.length + ")");
+    const ul = document.createElement("ul"); parent.appendChild(ul);
+    names.forEach(name => add(ul, "li", name));
+  }
+  groups.forEach(group => {
+    const box = document.createElement("div"); box.className = "sync-group"; container.appendChild(box);
+    add(box, "h4", group.path);
+    list(box, "On disk, missing from this sequence", group.missingSequence);
+    list(box, "Used on this track, missing from disk", group.missingDisk);
+    group.issues.forEach(issue => add(box, "p", issue, "sync-warning"));
+    if (!group.missingSequence.length && !group.missingDisk.length && !group.issues.length) add(box, "p", "All PNG files match.");
+    absent += group.missingSequence.length; missing += group.missingDisk.length; issues += group.issues.length;
+  });
+  if (snapshot.unresolved.length) list(container, "Source path unavailable — check these clips in Premiere", snapshot.unresolved);
+  $("syncSummary").textContent = snapshot.sequenceName + " · V" + (snapshot.trackIndex + 1) + " · " + snapshot.total + " PNG clips. " +
+    absent + " files missing from sequence; " + missing + " missing from disk." + (issues ? " " + issues + " checks need attention." : "") +
+    " Checks all PNGs in this track’s source folders against every video track in this sequence. No clips or files are changed.";
+}
+async function syncWithLocal() {
+  if (busy) return;
+  if (active) stopListener();
+  if (!$("trackSelect").options.length && !(await refreshTracks())) return;
+  busy = true; $("syncLocal").disabled = true;
+  $("syncReport").hidden = false; $("syncGroups").innerHTML = "";
+  $("syncSummary").textContent = "Checking subtitle source folders…";
+  try {
+    const snapshot = parseHost(await callHost("psnLocalSyncSources(" + currentTrackIndex() + ")"));
+    if (!snapshot.ok) throw new Error(snapshot.error);
+    renderLocalSync(snapshot, await compareLocalSources(snapshot));
+    setStatus("Local subtitle check complete. See the report in Adjust/Add Sub.");
+  } catch (error) {
+    $("syncSummary").textContent = error.message || String(error);
+    setStatus("Could not complete the local subtitle check.", "bad");
+  } finally { busy = false; $("syncLocal").disabled = false; }
+}
+
+function confirmExtraImport(trackIndex, count, issue, preview) {
   const dialog = $("extraConfirm");
-  $("extraConfirmTitle").textContent = issue ? "Confirm subtitle track" : "Subtitle track detected";
+  $("extraFoundResult").hidden = !preview;
+  $("extraConfirmTitle").className = preview ? "visually-hidden" : "";
+  dialog.setAttribute("data-result", preview ? (preview.count > 0 ? "found" : "empty") : "");
+  $("extraConfirmTitle").textContent = issue ? "Confirm subtitle track" : "Confirm selected subtitle track";
   $("extraConfirmTrack").textContent = "V" + (trackIndex + 1);
-  $("extraConfirmCount").textContent = issue ? "Selected subtitle track" : count + " matching subtitle PNGs";
+  $("extraConfirmCount").textContent = issue ? "Selected subtitle track" : count + " total PNG clips on this track";
   $("extraConfirmIssue").textContent = issue || "";
   $("extraConfirmIssue").hidden = !issue;
   $("extraConfirmPlan").textContent = "If missing extras are found, a new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align them.";
+  $("extraConfirmPlan").hidden = !!preview && preview.count === 0;
+  $("extraConfirmAccept").disabled = false;
+  $("extraConfirmAccept").hidden = preview && !preview.count;
+  $("extraConfirmCancel").disabled = false;
+  $("extraConfirmCancel").textContent = preview && !preview.count ? "Close" : "Cancel";
+  if (preview) {
+    $("extraFoundNumber").textContent = String(preview.count);
+    $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
+    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras. " + preview.green + " green: within parent timing. " + preview.red + " red: extend outside parent timing." : "There are no new extra subtitles to import for this track.";
+    $("extraConfirmQuestion").textContent = preview.count ? "Import these extras?" : "Your sequence has not been changed.";
+  }
   return new Promise(resolve => {
     const finish = accepted => {
       dialog.close();
@@ -144,26 +242,31 @@ async function importExtras() {
   busy = true;
   $("importExtras").disabled = true;
   try {
-    setStatus("Looking for the track with the most ordered subtitle PNGs…", "");
-    const detected = parseHost(await callHost("psnDetectExtraSource()"));
-    let script;
-    if (detected.ok) {
-      selectedExtraSourceIndex = detected.sourceIndex;
-      $("extraSourceTrackSelect").value = String(selectedExtraSourceIndex);
-      localStorage.setItem("extraSourceTrackIndex", String(selectedExtraSourceIndex));
-      if (!(await confirmExtraImport(detected.sourceIndex, detected.count))) {
-        setStatus("Import cancelled. No tracks or clips changed.", "");
-        return;
-      }
-      script = "psnImportDetectedExtras()";
-    } else {
-      const selected = Number($("extraSourceTrackSelect").value);
-      if (!(await confirmExtraImport(selected, 0, detected.error))) {
-        setStatus("Import cancelled. Select the subtitle track and try again.", "");
-        return;
-      }
-      script = "psnImportExtras(" + selected + ")";
+    const selected = Number($("extraSourceTrackSelect").value);
+    setStatus("Searching extras on V" + (selected + 1) + "…", "");
+    $("extraFoundResult").hidden = true;
+    $("extraConfirmTitle").className = "";
+    $("extraConfirm").setAttribute("data-result", "");
+    $("extraConfirmTitle").textContent = "Searching extras…";
+    $("extraConfirmTrack").textContent = "V" + (selected + 1);
+    $("extraConfirmCount").textContent = "Please wait";
+    $("extraConfirmIssue").hidden = true;
+    $("extraConfirmPlan").hidden = false;
+    $("extraConfirmPlan").textContent = "Checking source folders and skipping PNGs already in this sequence. No track or clip is being added yet.";
+    $("extraConfirmQuestion").textContent = "";
+    $("extraConfirmAccept").hidden = false;
+    $("extraConfirmAccept").disabled = true;
+    $("extraConfirmCancel").disabled = true;
+    $("extraConfirm").oncancel = event => event.preventDefault();
+    $("extraConfirm").showModal();
+    const detected = parseHost(await callHost("psnPrepareExtras(" + selected + ")"));
+    $("extraConfirm").close();
+    if (!detected.ok) throw new Error(detected.error);
+    if (!(await confirmExtraImport(detected.sourceIndex, detected.totalPngClips, null, detected))) {
+      setStatus(detected.count ? "Import cancelled. No tracks or clips changed." : "0 extras found. Nothing to import.", "");
+      return;
     }
+    const script = "psnImportDetectedExtras()";
     setStatus("Checking existing subtitles and aligning missing extras…", "");
     const result = parseHost(await callHost(script));
     if (!result.ok) throw new Error(result.error);
@@ -177,7 +280,7 @@ async function importExtras() {
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
       (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : ""), "good");
     $("currentFile").textContent = result.count ? result.groups + " groups aligned. Originals under 2 seconds: extras start afterward; longer originals: extras end with them. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
-  } catch (error) { setStatus(error.message || String(error), "bad"); }
+  } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }
   finally { busy = false; $("importExtras").disabled = false; await refreshTracks(); }
 }
 
@@ -378,6 +481,7 @@ function initialize() {
   });
   $("trackSelect").addEventListener("change", () => {
     selectedTrackIndex = currentTrackIndex();
+    $("syncReport").hidden = true;
     localStorage.setItem("videoTrackIndex", String(selectedTrackIndex));
     if (active) { stopListener(); setStatus("Track changed. Activate Subtitle Shortcuts again.", "warn"); }
   });
@@ -388,6 +492,7 @@ function initialize() {
     localStorage.setItem("importTrackIndex", String(selectedImportTrackIndex));
   });
   $("activate").addEventListener("click", toggleActive);
+  $("syncLocal").addEventListener("click", syncWithLocal);
   $("advance").addEventListener("click", () => requestEdit("left"));
   $("previous").addEventListener("click", () => requestEdit("right"));
   $("undo").addEventListener("click", () => requestEdit("undo"));

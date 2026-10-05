@@ -93,12 +93,17 @@ let detection=JSON.parse(detect.context.psnDetectExtraSource());
 assert.strictEqual(detection.ok,true,detection.error);
 assert.strictEqual(detection.sourceIndex,1);
 assert.strictEqual(detection.count,4);
+assert.strictEqual(detection.totalPngClips,5,'total includes PNGs outside the detector score');
 assert.strictEqual(detect.created(),0,'detection cannot modify the timeline');
 assert.strictEqual(detect.imports(),0);
 let detectedImport=JSON.parse(detect.context.psnImportDetectedExtras());
 assert.strictEqual(detectedImport.ok,true,detectedImport.error);
 assert.strictEqual(detectedImport.count,1,'unrelated logo on the detected track is not imported');
 assert.deepStrictEqual(spans(detect.tracks[2]),[['My show 701_1.png',11,12]]);
+const repeatedTotal=setup([[['Main 001.png',0,3],['Main 001.png',3,6],['Main 002.png',6,9],['Other 001.png',9,12],['Other 002.png',12,15],['Other 003.png',15,18],['blank.png',18,21],['video.mov',21,24]]],[]);
+const totalResult=JSON.parse(repeatedTotal.context.psnDetectExtraSource());
+assert.strictEqual(totalResult.count,3);
+assert.strictEqual(totalResult.totalPngClips,7,'count all PNG instances, including repeated and unnumbered clips, excluding video');
 const unordered=setup([[['A 001.png',0,3],['A 009.png',3,6],['A 003.png',6,9]]],[]);
 assert.strictEqual(JSON.parse(unordered.context.psnDetectExtraSource()).ok,false);
 const tiedDetection=setup([[['A 001.png',0,3],['A 005.png',3,6],['A 019.png',6,9]],[['B 101.png',0,3],['B 111.png',3,6],['B 190.png',6,9]]],[]);
@@ -146,15 +151,15 @@ assert.strictEqual(chosen.created(),1,'no new track when no extras are missing')
 // Extra labels are inherited at insertion and restored on redo; originals retain their label.
 const red=setup([[['a.png',2,6]],[]],['a_1.png']);
 assert.strictEqual(red.run().ok,true);
-assert.strictEqual(red.tracks[1].clips[0].label,6);
+assert.strictEqual(red.tracks[1].clips[0].label,9);
 assert.strictEqual(red.items.get('a.png').getColorLabel(),3);
 assert.strictEqual(red.undo().ok,true);
 assert.strictEqual(red.redo().ok,true);
-assert.strictEqual(red.tracks[1].clips[0].label,6);
-const customRed=setup([[['a.png',2,6]],[]],['a_1.png'],{preferences:{'BE.Prefs.LabelNames.9':'Red'}});
+assert.strictEqual(red.tracks[1].clips[0].label,9);
+const customRed=setup([[['a.png',2,3]],[]],['a_1.png'],{preferences:{'BE.Prefs.LabelNames.9':'Red'}});
 assert.strictEqual(customRed.run().ok,true);
 assert.strictEqual(customRed.tracks[1].clips[0].label,9);
-const rgbRed=setup([[['a.png',2,6]],[]],['a_1.png'],{preferences:{'BE.Prefs.LabelColors.4':255,'BE.Prefs.LabelColors.6':3474060}});
+const rgbRed=setup([[['a.png',2,3]],[]],['a_1.png'],{preferences:{'BE.Prefs.LabelColors.4':255,'BE.Prefs.LabelColors.6':3474060}});
 assert.strictEqual(rgbRed.run().ok,true);
 assert.strictEqual(rgbRed.tracks[1].clips[0].label,4);
 const badLabel=setup([[['a.png',2,6]],[]],['a_1.png'],{failLabel:true});
@@ -296,3 +301,36 @@ assert.strictEqual(wrongTrack.tracks.length,2,'failed correction removes only ne
 assert.deepStrictEqual(spans(wrongTrack.tracks[0]),[['FN 3289-0514.png',0,10]]);
 assert.deepStrictEqual(spans(wrongTrack.tracks[1]),[['safe.png',0,30]]);
 console.log('automatic subtitle track tests passed');
+
+// Local sync reads all selected PNGs and sequence-wide usage without edits.
+const syncSources=JSON.parse(detect.context.psnLocalSyncSources(1));
+assert.strictEqual(syncSources.ok,true);
+assert.strictEqual(syncSources.total,5);
+assert.strictEqual(syncSources.paths.length,5);
+assert(syncSources.sequencePaths.length>syncSources.paths.length);
+assert.strictEqual(JSON.parse(detect.context.psnLocalSyncSources(100)).ok,false);
+
+const preferred=setup([[['A 001.png',0,3],['A 002.png',3,6],['A 003.png',6,9]], [['B 001.png',0,3],['B 001.png',3,6],['B 009.png',6,9],['B 003.png',9,12]]],[]);
+const selectedResult=JSON.parse(preferred.context.psnDetectExtraSource(1));
+assert.strictEqual(selectedResult.sourceIndex,1,'explicit selection wins over another ordered track');
+assert.strictEqual(selectedResult.totalPngClips,4);
+assert.strictEqual(JSON.parse(preferred.context.psnImportDetectedExtras()).ok,true);
+assert.strictEqual(JSON.parse(preferred.context.psnDetectExtraSource(20)).ok,false,'invalid choice cannot silently select another track');
+
+const preview=setup([[['base.png',2,8]],[]],['base_1.png']);
+let found=JSON.parse(preview.context.psnPrepareExtras(0));
+assert.strictEqual(found.count,1);assert.strictEqual(found.green,1);assert.strictEqual(found.red,0);
+assert.strictEqual(preview.created(),0);assert.strictEqual(preview.writes(),0);assert.strictEqual(preview.imports(),0);
+assert.strictEqual(JSON.parse(preview.context.psnImportDetectedExtras()).count,1);
+const overflow=setup([[['base.png',2,3]],[]],['base_1.png']);
+found=JSON.parse(overflow.context.psnPrepareExtras(0));assert.strictEqual(found.red,1);
+assert.strictEqual(JSON.parse(overflow.context.psnImportDetectedExtras()).count,1);
+assert.strictEqual(overflow.tracks[1].clips[0].label,6);
+const noExtras=setup([[['base.png',2,8]],[]],[]);
+assert.strictEqual(JSON.parse(noExtras.context.psnPrepareExtras(0)).count,0);
+assert.strictEqual(noExtras.created(),0);
+const changedPreview=setup([[['base.png',2,8]],[]],['base_1.png']);
+assert.strictEqual(JSON.parse(changedPreview.context.psnPrepareExtras(0)).count,1);
+changedPreview.context.psnFindExtraPaths=()=>[];
+assert.strictEqual(JSON.parse(changedPreview.context.psnImportDetectedExtras()).ok,false);
+assert.strictEqual(changedPreview.created(),0);

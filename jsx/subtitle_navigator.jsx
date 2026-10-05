@@ -386,7 +386,7 @@ function psnPlanExtras(paths, originals, seen, occupied, duration) {
         var alignAfter=isFinite(anchor.start) && anchor.end-anchor.start<2-psnEpsilon;
         var start=alignAfter ? anchor.end : anchor.end-variants.length*duration;
         if(start < -psnEpsilon) throw Error("Extra subtitles for "+anchor.name+" would start before the sequence. No clips imported.");
-        for(i=0;i<variants.length;i++) plan.push({path:variants[i].path,name:variants[i].name,start:Math.max(0,start+i*duration),end:alignAfter ? start+(i+1)*duration : anchor.end-(variants.length-i-1)*duration,align:alignAfter ? "start" : "end"});
+        for(i=0;i<variants.length;i++) plan.push({path:variants[i].path,name:variants[i].name,start:Math.max(0,start+i*duration),end:alignAfter ? start+(i+1)*duration : anchor.end-(variants.length-i-1)*duration,parentStart:anchor.start,parentEnd:anchor.end,align:alignAfter ? "start" : "end"});
         groupCount++;
     }
     plan.sort(function(a,b){return a.start-b.start;});
@@ -409,21 +409,21 @@ function psnExtraNewIds(track,before) {
     for(i=0;i<rows.length;i++) if(!old["$"+rows[i].id]) ids.push(rows[i].id);
     return ids;
 }
-function psnExtraRedLabel() {
+function psnExtraColorLabel(green) {
     // Premiere stores its configurable label colors as packed BGR values.
     // Rose (6) is the red-toned label in the default palette.
-    var best=6, distance=Infinity;
+    var best=green ? 9 : 6, distance=Infinity;
     try {
         for(var i=0;i<16;i++) {
             var name=String(app.properties.getProperty("BE.Prefs.LabelNames."+i));
-            if(/^red$/i.test(name)) return i;
+            if((green ? /^green$/i : /^red$/i).test(name)) return i;
             var raw=app.properties.getProperty("BE.Prefs.LabelColors."+i);
             if(raw===null || raw===undefined || String(raw)==="") continue;
             var color=Number(raw);
             if(!isFinite(color)) continue;
             var r=color & 255, g=(color >> 8) & 255, b=(color >> 16) & 255;
-            if(r<=g || r<=b) continue;
-            var d=(255-r)*(255-r)+g*g+b*b;
+            if(green ? (g<=r || g<=b) : (r<=g || r<=b)) continue;
+            var d=green ? r*r+(255-g)*(255-g)+b*b : (255-r)*(255-r)+g*g+b*b;
             if(d<distance) { distance=d; best=i; }
         }
     } catch(ignore) {}
@@ -445,7 +445,7 @@ function psnPlaceExtras(track,plan,before) {
         var item=map[psnNormalizePath(plan[i].path)];
         if(!item) throw Error("Cannot find imported PNG: "+plan[i].name);
     }
-    var placed=[], actualPlacements=[], redLabel=psnExtraRedLabel();
+    var placed=[], actualPlacements=[], redLabel=psnExtraColorLabel(false), greenLabel=psnExtraColorLabel(true);
     try {
         for(i=0;i<plan.length;i++) {
             var p=plan[i], source=map[psnNormalizePath(p.path)];
@@ -460,8 +460,9 @@ function psnPlaceExtras(track,plan,before) {
             for(t=0;t<plan.length;t++) tail=Math.max(tail,plan[t].end);
             var stagingStart=(Math.ceil(tail/frame)+2)*frame;
             // Newly inserted timeline instances inherit the project item's label.
-            source.setColorLabel(redLabel);
-            if(Number(source.getColorLabel())!==redLabel) throw Error("Premiere could not set the extra subtitle label color.");
+            var label=psnExtraFitsParent(p) ? greenLabel : redLabel;
+            source.setColorLabel(label);
+            if(Number(source.getColorLabel())!==label) throw Error("Premiere could not set the extra subtitle label color.");
             track.overwriteClip(source,stagingStart);
             var ids=psnExtraNewIds(track,previous);
             if(ids.length!==1) throw Error("Premiere did not place exactly one extra subtitle.");
@@ -523,7 +524,20 @@ function psnFindExtraPaths(originals) {
     }
     return paths;
 }
-function psnImportExtras(sourceIndex,destinationIndex,sourceIds) {
+function psnExtraFitsParent(p) {
+    return isFinite(p.parentStart) && isFinite(p.parentEnd) && p.start>=p.parentStart-psnEpsilon && p.end<=p.parentEnd+psnEpsilon;
+}
+function psnExtraPlanKey(result) {
+    var parts=[];
+    for(var i=0;i<result.plan.length;i++) parts.push(psnJson(result.plan[i]));
+    return parts.join("|");
+}
+function psnPrepareExtras(sourceIndex) {
+    var detected=psnDetectExtraSource(sourceIndex);
+    if(!psnExtraDetection) return detected;
+    return psnImportExtras(sourceIndex,undefined,psnExtraDetection.ids,true);
+}
+function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expectedKey) {
     try {
         var seq=app.project.activeSequence;
         if(!seq) throw Error("Open an active sequence first.");
@@ -545,6 +559,15 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds) {
         if(!isFinite(frame) || frame<=0) throw Error("Could not read the sequence frame rate.");
         var duration=Math.max(1,Math.round(1/frame))*frame;
         var result=psnPlanExtras(psnFindExtraPaths(originals),originals,psnSequencePngNames(seq),before,duration);
+        var planKey=psnExtraPlanKey(result);
+        if(expectedKey!==undefined && expectedKey!==planKey) throw Error("The extra files or their placement changed after the search. Search again before importing.");
+        if(previewOnly) {
+            psnExtraDetection.previewKey=planKey;
+            var green=0, totalPngClips=0;
+            for(i=0;i<result.plan.length;i++) if(psnExtraFitsParent(result.plan[i])) green++;
+            for(i=0;i<clips.numItems;i++) if(psnClipPngName(clips[i])) totalPngClips++;
+            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,count:result.plan.length,green:green,red:result.plan.length-green,skipped:result.skipped,unmatched:result.unmatched});
+        }
         if(!result.plan.length) return psnJson({ok:true,count:0,skipped:result.skipped,unmatched:result.unmatched,groups:0,trackIndex:destinationIndex,sourceIndex:sourceIndex});
         if(automatic) dest=psnCreateExtraTrack(seq,sourceIndex);
         var ids=psnPlaceExtras(dest,result.plan,before);
@@ -592,12 +615,26 @@ function psnExtraHistory(last,trackIndex,redo) {
 
 
 var psnExtraDetection=null;
-function psnDetectExtraSource() {
+function psnDetectExtraSource(preferredIndex) {
     psnExtraDetection=null;
     try {
         var seq=app.project.activeSequence;
         if(!seq) throw Error("Open an active sequence first.");
         var seen=psnSequencePngNames(seq), best=null, tied=false;
+        // An explicit track choice takes precedence over the automatic heuristic.
+        if(preferredIndex!==undefined) {
+            preferredIndex=Number(preferredIndex);
+            var chosen=psnGetVideoTrack(seq,preferredIndex), chosenIds={}, chosenCount=0;
+            if(!isFinite(preferredIndex) || preferredIndex<0 || preferredIndex%1 || !chosen) throw Error("Choose an existing subtitle track.");
+            for(var n=0;n<chosen.clips.numItems;n++) {
+                if(!psnClipPngName(chosen.clips[n])) continue;
+                chosenCount++;
+                chosenIds["$"+chosen.clips[n].nodeId]=true;
+            }
+            if(!chosenCount) throw Error("No subtitle PNG clips on V"+(preferredIndex+1)+". Choose the subtitle track.");
+            psnExtraDetection={sequenceKey:psnSequenceKey(seq),sourceIndex:preferredIndex,ids:chosenIds,snapshot:psnSnapshot(chosen)};
+            return psnJson({ok:true,sourceIndex:preferredIndex,count:chosenCount,totalPngClips:chosenCount});
+        }
         for(var t=0;t<seq.videoTracks.numTracks;t++) {
             var clips=seq.videoTracks[t].clips, groups={};
             for(var c=0;c<clips.numItems;c++) {
@@ -633,7 +670,11 @@ function psnDetectExtraSource() {
         if(!best) throw Error("No clear subtitle track found. Need at least three PNGs with the same name prefix and increasing or decreasing trailing numbers (3 or more digits). Choose the subtitle track manually.");
         if(tied) throw Error("Multiple tracks have the same number of matching subtitles. Choose the subtitle track manually.");
         psnExtraDetection={sequenceKey:psnSequenceKey(seq),sourceIndex:best.sourceIndex,ids:best.ids,snapshot:psnSnapshot(seq.videoTracks[best.sourceIndex])};
-        return psnJson({ok:true,sourceIndex:best.sourceIndex,count:best.count,first:best.first,last:best.last});
+        // The detector score is not the total: repeated numbers and other PNGs
+        // can be excluded from its filename-order heuristic.
+        var totalPngClips=0, selectedClips=seq.videoTracks[best.sourceIndex].clips;
+        for(var p=0;p<selectedClips.numItems;p++) if(psnClipPngName(selectedClips[p])) totalPngClips++;
+        return psnJson({ok:true,sourceIndex:best.sourceIndex,count:best.count,totalPngClips:totalPngClips,first:best.first,last:best.last});
     } catch(e) { return psnError(e.toString()); }
 }
 function psnImportDetectedExtras() {
@@ -643,7 +684,7 @@ function psnImportDetectedExtras() {
         if(!detection || !seq || psnSequenceKey(seq)!==detection.sequenceKey ||
             !psnGetVideoTrack(seq,detection.sourceIndex) || !psnEqual(psnSnapshot(seq.videoTracks[detection.sourceIndex]),detection.snapshot))
             throw Error("The sequence or subtitle track changed after detection. Detect and confirm again.");
-        return psnImportExtras(detection.sourceIndex,undefined,detection.ids);
+        return psnImportExtras(detection.sourceIndex,undefined,detection.ids,false,detection.previewKey);
     } catch(e) { return psnError(e.toString()); }
 }
 function psnIsSubtitleName(name) {
@@ -743,4 +784,31 @@ function psnCreateExtraTrack(sequence,sourceIndex) {
         if(record.destinationIndex!==undefined && record.destinationIndex>=destinationIndex) record.destinationIndex++;
     }
     return tracks[destinationIndex];
+}
+
+// Read-only snapshot for comparing source folders with the active sequence.
+function psnLocalSyncSources(trackIndex) {
+    try {
+        var seq=app.project.activeSequence;
+        if(!seq) throw Error("Open an active sequence first.");
+        trackIndex=Number(trackIndex);
+        var track=psnGetVideoTrack(seq,trackIndex);
+        if(trackIndex<0 || trackIndex%1 || !track) throw Error("Choose a subtitle track first.");
+        var paths=[], unresolved=[], sequencePaths=[], total=0;
+        for(var t=0;t<seq.videoTracks.numTracks;t++) {
+            var clips=seq.videoTracks[t].clips;
+            for(var c=0;c<clips.numItems;c++) {
+                if(!psnClipPngName(clips[c])) continue;
+                var media=psnProjectItemPath(clips[c].projectItem);
+                if(media) sequencePaths.push(psnQuote(media));
+                if(t===trackIndex) {
+                    total++;
+                    if(media) paths.push(psnQuote(media));
+                    else unresolved.push(psnQuote(psnItemName(clips[c])));
+                }
+            }
+        }
+        if(!total) throw Error("No subtitle PNG clips on the selected track.");
+        return '{"ok":true,"trackIndex":'+trackIndex+',"total":'+total+',"sequenceName":'+psnQuote(seq.name)+',"paths":['+paths.join(',')+'],"sequencePaths":['+sequencePaths.join(',')+'],"unresolved":['+unresolved.join(',')+']}';
+    } catch(e) { return psnError(e.toString()); }
 }

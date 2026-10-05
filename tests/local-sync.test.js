@@ -1,0 +1,32 @@
+const assert=require('assert'),fs=require('fs'),path=require('path'),os=require('os'),vm=require('vm');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'subtitle-sync-'));
+const a=path.join(root,'one'),b=path.join(root,'two');fs.mkdirSync(a);fs.mkdirSync(b);
+for(const name of ['Show 001.png','Show 002.png','Show 002_1.png','Show 010.png','notes.txt']) fs.writeFileSync(path.join(a,name),'');
+fs.mkdirSync(path.join(a,'folder.png'));
+fs.writeFileSync(path.join(b,'Show 001.png'),'');
+function element(){return {children:[],options:[{value:'0'}],value:'0',textContent:'',hidden:true,appendChild(n){this.children.push(n);},set innerHTML(v){this.children=[];},addEventListener(){}};}
+const els={};const get=id=>els[id]||(els[id]=element());
+const ctx=vm.createContext({require,console,Buffer,__dirname:path.join(__dirname,'../js'),process:{env:{LOCALAPPDATA:root}},localStorage:{getItem(){return null;}},window:{location:{pathname:''}},document:{getElementById:get,createElement:element,addEventListener(){}}});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/main.js'),'utf8'),ctx);
+(async()=>{
+ const snapshot={ok:true,sequenceName:'Test <sequence>',trackIndex:10,total:4,paths:[path.join(a,'Show 001.png'),path.join(a,'Show 001.png'),path.join(a,'Show 003.png'),path.join(b,'Show 004.png')],sequencePaths:[path.join(a,'Show 001.png'),path.join(a,'Show 002_1.png')],unresolved:[]};
+ const groups=await ctx.compareLocalSources(snapshot);
+ assert.strictEqual(groups.length,2);
+ assert.deepStrictEqual(Array.from(groups[0].missingSequence),['Show 002.png','Show 010.png']);
+ assert.deepStrictEqual(Array.from(groups[0].missingDisk),['Show 003.png']);
+ assert.deepStrictEqual(Array.from(groups[1].missingSequence),['Show 001.png'],'same basename in another folder remains distinct');
+ assert.deepStrictEqual(Array.from(groups[1].missingDisk),['Show 004.png']);
+ assert.strictEqual(groups[0].sources.size,2,'duplicate clips are checked once per file');
+ ctx.renderLocalSync(snapshot,groups);
+ assert(get('syncSummary').textContent.includes('3 files missing from sequence; 2 missing from disk'));
+ assert.strictEqual(get('syncGroups').children[0].children[0].textContent,a);
+ const offline=await ctx.compareLocalSources({...snapshot,paths:[path.join(root,'offline','Show 001.png')]});
+ assert.strictEqual(offline[0].missingDisk.length,0,'unavailable folder is not declared deleted media');
+ assert.strictEqual(offline[0].issues.length,1);
+ ctx.callHost=async script=>{assert.strictEqual(script,'psnLocalSyncSources(0)');return JSON.stringify(snapshot);};
+ await ctx.syncWithLocal(); assert.strictEqual(get('syncLocal').disabled,false);assert.strictEqual(get('syncReport').hidden,false);
+ assert.strictEqual(fs.readFileSync(path.join(a,'Show 001.png'),'utf8'),'');
+ ctx.callHost=async()=>JSON.stringify({ok:false,error:'No active sequence'});
+ await ctx.syncWithLocal(); assert.strictEqual(get('syncSummary').textContent,'No active sequence');assert.strictEqual(get('syncLocal').disabled,false);
+ console.log('local sync comparison and report tests passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

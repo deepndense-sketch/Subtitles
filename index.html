@@ -32,11 +32,14 @@
         <button id="refreshExtraTracks" class="secondary">Refresh Tracks</button>
       </div>
       <button id="importExtras" class="primary">Import &amp; Align Extra Subs</button>
-      <p class="muted small">Detects the track with the most numbered subtitle PNGs and asks you to confirm. Missing extras go on a new track directly above it.</p>
+      <p class="muted small">Uses your selected subtitle track and asks you to confirm. Missing extras go on a new track directly above it.</p>
     </section>
     <section class="card" id="sequencePanel" role="tabpanel" aria-labelledby="sequenceTab" hidden>
       <h2>Adjust/Add Sub</h2>
-      <button id="activate" class="primary">Activate Subtitle Shortcuts</button>
+      <div class="sequence-actions">
+        <button id="activate" class="primary">Activate Subtitle Shortcuts</button>
+        <button id="syncLocal" type="button">Sync with local</button>
+      </div>
       <p class="muted small">Other keys turn shortcuts off. Arrow keys, Space, [ / ], and Ctrl+Z / Ctrl+Shift+Z keep them active. Click Activate again to resume.</p>
       <div class="row track-row">
         <label for="trackSelect">Shortcut track</label>
@@ -44,6 +47,11 @@
         <button id="refreshTracks" class="secondary">Refresh Tracks</button>
       </div>
       <p class="muted small">Every clip on this track is treated as a subtitle. Existing clips work without importing again. Use a dedicated subtitle track.</p>
+      <div role="region" aria-label="Local subtitle comparison" id="syncReport" class="sync-report" aria-live="polite" hidden>
+        <h3>Sync with local</h3>
+        <p id="syncSummary" class="muted"></p>
+        <div id="syncGroups"></div>
+      </div>
       <details id="numberedImport" class="numbered-import">
       <summary>Import numbered PNGs</summary>
       <button id="chooseFolder" class="secondary">Choose PNG Folder</button>
@@ -60,7 +68,7 @@
     </section>
     <section class="card">
       <h2>Status</h2>
-      <div id="status" class="status">Ready. v1.7.4 — choose a subtitle track to import extras.</div>
+      <div id="status" class="status">Ready. v1.9.4 — choose a subtitle track to import extras.</div>
       <div id="currentFile" class="current">No operation yet.</div>
     </section>
     <details id="manualControls" class="card manual-controls">
@@ -88,9 +96,13 @@
       <strong id="extraConfirmTrack" class="confirm-track"></strong>
       <span id="extraConfirmCount"></span>
     </div>
+    <div id="extraFoundResult" class="extra-found-result" hidden aria-hidden="true">
+      <strong id="extraFoundNumber" class="extra-found-number">0</strong>
+      <span>extras found</span>
+    </div>
     <p id="extraConfirmIssue" class="confirm-issue" hidden></p>
     <p id="extraConfirmPlan"></p>
-    <p class="confirm-question">Is this the correct subtitle track?</p>
+    <p id="extraConfirmQuestion" class="confirm-question">Is this the correct subtitle track?</p>
     <div class="confirm-actions">
       <button id="extraConfirmCancel" type="button">Cancel</button>
       <button id="extraConfirmAccept" type="button">Yes, import extras</button>

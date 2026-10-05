@@ -1,3 +1,36 @@
+## 1.9.4
+
+- Show the large extras number without a box and place the result below track information.
+
+## 1.9.3
+
+- Hide the redundant explanation beneath the zero-extras badge.
+
+## 1.9.2
+
+- Show the extras count as a large badge; use green for extras found and neutral styling for zero.
+
+## 1.9.1
+
+- Make the empty search result say "0 extras found", without confusing skipped/unmatched counts.
+
+## 1.9.0
+
+- Search for extra PNGs before confirmation; show exact import count, planned track, and green/red timing counts. Recheck the plan at import.
+- Label extras green within parent timing and red outside it; preserve original subtitles.
+
+## 1.8.1
+
+- Respect the selected extra-subtitle source track, confirm its total PNG clip count, and stop rather than switching to another track when the selection is invalid.
+
+## 1.8.0
+
+- Add read-only Sync with local in Adjust/Add Sub: compare PNG source folders with the active sequence, listing missing sequence files, missing disk files, and inaccessible folders by path.
+
+## 1.7.5
+
+- Show the actual total PNG clip count on the detected track, including repeated and unnumbered PNG clips, instead of presenting the detector score as a total.
+
 # Changelog
 
 ## 1.7.4

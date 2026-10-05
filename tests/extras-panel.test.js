@@ -19,7 +19,7 @@ const ctx=vm.createContext({require,Buffer,process:{env:{LOCALAPPDATA:root}},con
   window:{location:{pathname:''},addEventListener(){},confirm(){return true;}},
   document:{getElementById:element,createElement:()=>({}),addEventListener(){}},__dirname:path.join(__dirname,'../js')});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/main.js'),'utf8'),ctx);
-vm.runInContext(`var calls=[]; callHost=async function(script){calls.push(script); return JSON.stringify(script==='psnGetTrackInfo()' ? {ok:true,trackCount:4} : {ok:true,count:2,groups:1,skipped:3,unmatched:1,trackIndex:3,sourceIndex:2});};`,ctx);
+vm.runInContext(`var calls=[]; callHost=async function(script){calls.push(script); return JSON.stringify(script==='psnGetTrackInfo()' ? {ok:true,trackCount:4} : {ok:true,count:2,green:1,red:1,totalPngClips:414,groups:1,skipped:3,unmatched:1,trackIndex:3,sourceIndex:2});};`,ctx);
 (async()=>{
   async function importWithResponse(accept) {
     const pending=ctx.importExtras();
@@ -49,6 +49,7 @@ vm.runInContext(`var calls=[]; callHost=async function(script){calls.push(script
   assert.strictEqual(stored.extraSourceTrackIndex,'2');
   await importWithResponse(false);
   assert.strictEqual(element('extraConfirmIssue').hidden,true);
+  assert.strictEqual(element('extraConfirmCount').textContent,'414 total PNG clips on this track');
   assert(!Array.from(ctx.calls).includes('psnImportDetectedExtras()'),'cancelling detection must not import');
   await importWithResponse(true);
   assert(Array.from(ctx.calls).includes('psnImportDetectedExtras()'),'imports the confirmed detected source');
@@ -58,13 +59,24 @@ vm.runInContext(`var calls=[]; callHost=async function(script){calls.push(script
   assert(element('status').textContent.includes('Already in sequence: 3'));
   assert.strictEqual(element('importExtras').disabled,false);
   const detectingHost=ctx.callHost;
-  ctx.callHost=async script=>script==='psnDetectExtraSource()' ? JSON.stringify({ok:false,error:'No clear track found.'}) : detectingHost(script);
-  await importWithResponse(false);
-  assert.strictEqual(element('extraConfirmIssue').hidden,false);
-  assert.strictEqual(element('extraConfirmIssue').textContent,'No clear track found.');
-  assert(!Array.from(ctx.calls).includes('psnImportExtras(2)'),'manual fallback also requires confirmation');
-  await importWithResponse(true);
-  assert(Array.from(ctx.calls).includes('psnImportExtras(2)'),'confirmed manual fallback remains available');
+  assert(Array.from(ctx.calls).includes('psnPrepareExtras(2)'), 'pass the chosen track to host');
+  assert(!Array.from(ctx.calls).includes('psnPrepareExtras()'), 'do not override selection with automatic detection');
+  ctx.callHost=async script=>script==='psnPrepareExtras(2)' ? JSON.stringify({ok:false,error:'No PNGs on chosen track.'}) : detectingHost(script);
+  await ctx.importExtras();
+  assert.strictEqual(element('status').textContent,'No PNGs on chosen track.');
+  assert.strictEqual(element('extraConfirm').open,false);
+  ctx.callHost=detectingHost;
+  let releaseSearch;
+  ctx.callHost=script=>script==='psnPrepareExtras(2)' ? new Promise(resolve=>{releaseSearch=resolve;}) : detectingHost(script);
+  const searching=ctx.importExtras();
+  assert.strictEqual(element('extraConfirmTitle').textContent,'Searching extras…');
+  assert.strictEqual(element('extraConfirmAccept').disabled,true);
+  releaseSearch(JSON.stringify({ok:true,sourceIndex:2,totalPngClips:414,count:0,green:0,red:0,skipped:6,unmatched:32}));
+  await new Promise(r=>setTimeout(r,0));
+  assert.strictEqual(element('extraConfirmTitle').textContent,'0 extras found');
+  assert.strictEqual(element('extraConfirmAccept').hidden,true);
+  assert.strictEqual(element('extraConfirmPlan').textContent,'There are no new extra subtitles to import for this track.');
+  element('extraConfirmCancel').onclick(); await searching;
   ctx.callHost=detectingHost;
   const escapeConfirmation=ctx.confirmExtraImport(10,327);
   assert.strictEqual(element('extraConfirmTrack').textContent,'V11');
