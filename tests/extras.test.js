@@ -188,12 +188,11 @@ const c=setup([[['Case.PNG',0,10]],[]],['CASE_1.PNG','Unrelated Case_2.png']);
 assert.strictEqual(c.run().count,1);assert.strictEqual(c.undo().ok,true);
 const importCount=c.imports();assert.strictEqual(c.run().count,1);assert.strictEqual(c.imports(),importCount);
 
-// Destination conflict / group conflict / negative start / duplicate originals: no imports or writes.
+// Destination conflict / group conflict / negative start: no imports or writes.
 for(const bad of [
   setup([[['a.png',0,10]],[['occupied.png',9,11]]],['a_1.png']),
   setup([[['a.png',0,10],['b.png',8.5,10.5]],[]],['a_1.png','b_1.png']),
-  setup([[['a.png',-2,0.5]],[]],['a_1.png']),
-  setup([[['a.png',0,10],['a.png',20,30]],[]],['a_1.png'])
+  setup([[['a.png',-2,0.5]],[]],['a_1.png'])
 ]) { assert.strictEqual(bad.run().ok,false);assert.strictEqual(bad.writes(),0);assert.strictEqual(bad.imports(),0); }
 const invalid=setup([[['a.png',0,10]],[]],['a_1.png']);
 assert.strictEqual(invalid.run(0,0).ok,false);assert.strictEqual(invalid.run(1,0).ok,false);
@@ -334,3 +333,26 @@ assert.strictEqual(JSON.parse(changedPreview.context.psnPrepareExtras(0)).count,
 changedPreview.context.psnFindExtraPaths=()=>[];
 assert.strictEqual(JSON.parse(changedPreview.context.psnImportDetectedExtras()).ok,false);
 assert.strictEqual(changedPreview.created(),0);
+
+// Reused originals anchor each extra once at the last occurrence, regardless of collection order.
+const reused=setup([[['a.png',20,30],['a.png',0,10]],[]],['a_1.png','a_2.png']);
+const reuseBefore=spans(reused.tracks[0]);
+let reusePreview=JSON.parse(reused.context.psnPrepareExtras(0));
+assert.strictEqual(reusePreview.repeatedGroups,1);assert.strictEqual(reusePreview.count,2);assert.strictEqual(reused.writes(),0);
+let reuseImport=JSON.parse(reused.context.psnImportDetectedExtras());
+assert.strictEqual(reuseImport.ok,true,reuseImport.error);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',28,29],['a_2.png',29,30]]);
+assert.deepStrictEqual(spans(reused.tracks[0]),reuseBefore);
+assert.strictEqual(reused.run().count,0,'repeated import does not duplicate extras');
+assert.strictEqual(reused.undo().ok,true);assert.strictEqual(reused.redo().ok,true);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',28,29],['a_2.png',29,30]]);
+// Short touching pieces form a long parent; extras end with its combined tail.
+const splitParent=setup([[['a.png',2,3],['a.png',3,4],['a.png',4,5]],[]],['a_1.png']);
+assert.strictEqual(splitParent.run().ok,true);
+assert.deepStrictEqual(spans(splitParent.tracks[1]),[['a_1.png',4,5]]);
+assert.strictEqual(splitParent.tracks[1].clips[0].label,9);
+// A separate short final occurrence retains the existing after-parent rule.
+const shortRepeat=setup([[['a.png',0,10],['a.png',20,21]],[]],['a_1.png']);
+assert.strictEqual(shortRepeat.run().ok,true);
+assert.deepStrictEqual(spans(shortRepeat.tracks[1]),[['a_1.png',21,22]]);
+assert.strictEqual(shortRepeat.tracks[1].clips[0].label,6);

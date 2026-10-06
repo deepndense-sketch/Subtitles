@@ -359,8 +359,22 @@ function psnSequencePngNames(sequence) {
     }
     return seen;
 }
+// A PNG may be split or reused. Merge touching pieces, then use its last
+// occurrence so one extra file still produces one timeline clip.
+function psnLastExtraAnchor(rows) {
+    var ordered=rows.slice(0);
+    ordered.sort(function(a,b){return a.start-b.start || a.end-b.end;});
+    var last=null;
+    for(var i=0;i<ordered.length;i++) {
+        var row=ordered[i];
+        if(!isFinite(row.start) || !isFinite(row.end) || row.end<=row.start) throw Error("Invalid original subtitle timing.");
+        if(last && row.start<=last.end+psnEpsilon) last.end=Math.max(last.end,row.end);
+        else last={name:row.name,path:row.path,start:row.start,end:row.end};
+    }
+    return last;
+}
 function psnPlanExtras(paths, originals, seen, occupied, duration) {
-    var anchors={}, groups={}, names={}, plan=[], skipped=0, unmatched=0, groupCount=0, i,key;
+    var anchors={}, groups={}, names={}, plan=[], skipped=0, unmatched=0, groupCount=0, repeatedGroups=0, i,key;
     for(i=0;i<originals.length;i++) {
         key="$"+psnNormalizePath(originals[i].path);
         if(!anchors[key]) anchors[key]=[];
@@ -375,12 +389,12 @@ function psnPlanExtras(paths, originals, seen, occupied, duration) {
         if(seen["$"+normalized] || seen["@"+name]) { skipped++; continue; }
         key="$"+normalized.substring(0,normalized.lastIndexOf("/")+1)+match[1]+".png";
         if(!anchors[key]) { unmatched++; continue; }
-        if(anchors[key].length!==1) throw Error("The original appears more than once on the source track: "+match[1]+".png. Choose a track with one original per filename.");
         if(!groups[key]) groups[key]=[];
         groups[key].push({path:paths[i],name:name,variant:Number(match[2])});
     }
     for(key in groups) if(groups.hasOwnProperty(key)) {
-        var variants=groups[key], anchor=anchors[key][0];
+        var variants=groups[key], anchor=psnLastExtraAnchor(anchors[key]);
+        if(anchors[key].length>1) repeatedGroups++;
         variants.sort(function(a,b){return a.variant-b.variant || (a.name<b.name ? -1 : 1);});
         if(!isFinite(anchor.end) || !isFinite(duration) || duration<=0) throw Error("Invalid original subtitle timing.");
         var alignAfter=isFinite(anchor.start) && anchor.end-anchor.start<2-psnEpsilon;
@@ -395,7 +409,7 @@ function psnPlanExtras(paths, originals, seen, occupied, duration) {
         for(var j=0;j<occupied.length;j++) if(occupied[j].start<plan[i].end-psnEpsilon && occupied[j].end>plan[i].start+psnEpsilon)
             throw Error("The destination is occupied at "+plan[i].start.toFixed(3)+"s for "+plan[i].name+". Choose an empty track above the originals. No clips imported.");
     }
-    return {plan:plan,skipped:skipped,unmatched:unmatched,groups:groupCount};
+    return {plan:plan,skipped:skipped,unmatched:unmatched,groups:groupCount,repeatedGroups:repeatedGroups};
 }
 function psnRemoveExtraClips(track, ids) {
     for(var i=ids.length-1;i>=0;i--) {
@@ -566,7 +580,7 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
             var green=0, totalPngClips=0;
             for(i=0;i<result.plan.length;i++) if(psnExtraFitsParent(result.plan[i])) green++;
             for(i=0;i<clips.numItems;i++) if(psnClipPngName(clips[i])) totalPngClips++;
-            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,count:result.plan.length,green:green,red:result.plan.length-green,skipped:result.skipped,unmatched:result.unmatched});
+            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,count:result.plan.length,green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,skipped:result.skipped,unmatched:result.unmatched});
         }
         if(!result.plan.length) return psnJson({ok:true,count:0,skipped:result.skipped,unmatched:result.unmatched,groups:0,trackIndex:destinationIndex,sourceIndex:sourceIndex});
         if(automatic) dest=psnCreateExtraTrack(seq,sourceIndex);
@@ -575,7 +589,7 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
         psnRedoHistory=[];
         var shortened=0;
         for(i=0;i<result.plan.length;i++) if(result.plan[i].shortened) shortened++;
-        return psnJson({ok:true,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,duration:duration,shortened:shortened,sourceIndex:sourceIndex});
+        return psnJson({ok:true,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,duration:duration,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
     } catch(e) { return psnError(e.toString()); }
 }
 function psnExtraHistory(last,trackIndex,redo) {

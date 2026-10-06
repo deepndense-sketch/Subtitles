@@ -214,6 +214,10 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
   $("extraConfirmCancel").disabled = false;
   $("extraConfirmCancel").textContent = preview && !preview.count ? "Close" : "Cancel";
   if (preview) {
+    if (preview.repeatedGroups) {
+      $("extraConfirmIssue").textContent = "Note: " + preview.repeatedGroups + " repeated original(s). Touching split pieces are treated as one subtitle; extras align to the last occurrence and are imported once.";
+      $("extraConfirmIssue").hidden = false;
+    }
     $("extraFoundNumber").textContent = String(preview.count);
     $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
     $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras. " + preview.green + " green: within parent timing. " + preview.red + " red: extend outside parent timing." : "There are no new extra subtitles to import for this track.";
@@ -278,7 +282,8 @@ async function importExtras() {
     }
     setStatus((result.count ? "Imported and aligned " + result.count + " extra subtitles on V" + (result.trackIndex + 1) + "." : "No missing extras to import.") +
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
-      (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : ""), "good");
+      (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : "") +
+      (result.repeatedGroups ? " Note: extras for " + result.repeatedGroups + " repeated original(s) were aligned to the last occurrence." : ""), "good");
     $("currentFile").textContent = result.count ? result.groups + " groups aligned. Originals under 2 seconds: extras start afterward; longer originals: extras end with them. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
   } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }
   finally { busy = false; $("importExtras").disabled = false; await refreshTracks(); }

@@ -1,3 +1,7 @@
+## 1.9.5
+
+- Accept repeated original PNGs: merge touching split pieces for timing and anchor each missing extra once to the final occurrence. Preserve originals and duplicate-import protection. Show repeated-original handling as a note without blocking import.
+
 ## 1.9.4
 
 - Show the large extras number without a box and place the result below track information.
