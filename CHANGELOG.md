@@ -1,3 +1,8 @@
+## 1.9.10
+
+- Split the main clip equally with extras on the first import. Later additions split only the highest-numbered existing extra, preserving the main and earlier extras. The new highest suffix ends at the divided clip's previous end.
+- Restore split clips on failed imports and undo; validate affected tracks and preview timing before edits. Preserve split history across later track insertion and redo.
+
 ## 1.9.9
 
 - Reserve timing slots for the full numeric extra group, including variants already imported. A missing lower suffix no longer takes the final slot belonging to the highest suffix. Existing clips remain unchanged.

@@ -254,7 +254,7 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
     }
     $("extraFoundNumber").textContent = String(preview.count);
     $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
-    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
+    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras, splitting the main clip or last existing extra into equal parts. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
     $("extraConfirmQuestion").textContent = preview.count ? "Import these extras?" : "Your sequence has not been changed.";
   }
   return new Promise(resolve => {
@@ -318,7 +318,7 @@ async function importExtras() {
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
       (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : "") +
       (result.repeatedGroups ? " Note: extras for " + result.repeatedGroups + " repeated original(s) were aligned to the last occurrence." : ""), "good");
-    $("currentFile").textContent = result.count ? result.groups + " groups aligned. Original duration is divided equally between the original and its extras. The last extra ends at the original end; original clips are unchanged. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
+    $("currentFile").textContent = result.count ? result.groups + " groups aligned. The main clip, or last existing extra, was split equally with the new extras. The highest-numbered extra ends at its previous end. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
   } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }
   finally { busy = false; $("importExtras").disabled = false; await refreshTracks(); }
 }
