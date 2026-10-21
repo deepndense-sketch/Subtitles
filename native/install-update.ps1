@@ -9,7 +9,7 @@ function Get-UpdateHash($filePath) {
 }
 function Write-UpdateStatus($state, $message) {
     $tempStatus = $status + '.tmp'
-    [IO.File]::WriteAllText($tempStatus, (@{state=$state;message=$message;pid=$PID} | ConvertTo-Json -Compress))
+    [IO.File]::WriteAllText($tempStatus, (@{state=$state;message=$message;pid=$PID;updated=([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())} | ConvertTo-Json -Compress))
     Move-Item -LiteralPath $tempStatus -Destination $status -Force
 }
 $changed = @()
@@ -35,6 +35,7 @@ try {
     Write-UpdateStatus 'waiting' 'Update ready. Save and close Premiere to finish installing.'
     while (Get-Process -Name 'Adobe Premiere Pro','Premiere' -ErrorAction SilentlyContinue) {
         if (Test-Path -LiteralPath (Join-Path $job 'cancel')) { throw 'Update cancelled before installation.' }
+        Write-UpdateStatus 'waiting' 'Update ready. Save and fully close all Premiere windows to finish installing.'
         Start-Sleep -Seconds 2
     }
     if (Test-Path -LiteralPath (Join-Path $job 'cancel')) { throw 'Update cancelled before installation.' }

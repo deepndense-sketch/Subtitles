@@ -37,6 +37,15 @@ async function fetchFile(url) {
     assert.strictEqual(updater.pending(target).state,'waiting');
     fs.writeFileSync(path.join(job,'status.json'),JSON.stringify({state:'waiting',pid:99999999}));
     assert.strictEqual(updater.pending(target).state,'failed');
+    fs.writeFileSync(path.join(job,'status.json'),JSON.stringify({state:'waiting',pid:process.pid,updated:Date.now()-180000}));
+    assert.strictEqual(updater.pending(target).state,'failed','a live but unresponsive process cannot leave updates pending');
+    assert(fs.existsSync(path.join(job,'cancel')));
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(job,'status.json'))).state,'failed');
+    fs.writeFileSync(path.join(job,'status.json'),JSON.stringify({state:'installing',pid:process.pid,updated:Date.now()}));
+    assert.strictEqual(updater.pending(target).state,'installing','fresh installer remains pending');
+    fs.writeFileSync(path.join(job,'status.json'),JSON.stringify({state:'failed',message:'#< CLIXML PSSecurityException UnauthorizedAccess'}));
+    assert(updater.pending(target).message.includes('Windows blocked'));
+    assert(!updater.pending(target).message.includes('CLIXML'));
     fs.writeFileSync(path.join(target,'package.json'),JSON.stringify({version:'2.0.0'}));
     assert.strictEqual(updater.pending(target),null);
   } finally {process.env.LOCALAPPDATA=savedLocal;}

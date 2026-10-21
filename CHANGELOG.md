@@ -1,3 +1,8 @@
+## 1.9.8
+
+- Detect stalled update helpers through periodic status timestamps; cancel stale jobs and offer Retry instead of leaving Update pending indefinitely.
+- Show readable Windows installer restriction errors while retaining raw helper logs for diagnosis.
+
 ## 1.9.7
 
 - Publish the extra-subtitle timing and duration-color fixes under a new version so installations already running 1.9.6 receive an update offer.

@@ -1,11 +1,11 @@
 {
-  "version": "1.9.7",
+  "version": "1.9.8",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1544,
-      "sha256": "6c017710dc90fc57f0a644216ac99227ccb671118ca0112e972f521694119777"
+      "sha256": "4825b97d5b1a9f96c0ba875578395ba517d36f5c159b2617fcb9ff38ed5fa29a"
     },
     {
       "path": "css/style.css",
@@ -15,7 +15,7 @@
     {
       "path": "index.html",
       "size": 8370,
-      "sha256": "b409dd43927a5353cb727661a13c8f78ea409826c463d68623c2a60f814d1d78"
+      "sha256": "92d571c540e62d2703b26c265e16af78ccc8ea682003fc44e0b89e249d49bf11"
     },
     {
       "path": "js/main.js",
@@ -44,8 +44,8 @@
     },
     {
       "path": "lib/cep-updater.js",
-      "size": 8763,
-      "sha256": "9d7bd406fcbaeda47d5a96a517c56465eb9c4b4414f77b66fb9fa6a27edf37f6"
+      "size": 9853,
+      "sha256": "2813af462c98c6cccdc008eef8510b7af8d2e013e72a1fba404cd754efb48b4d"
     },
     {
       "path": "native/KeyListener.exe",
@@ -54,13 +54,13 @@
     },
     {
       "path": "native/install-update.ps1",
-      "size": 4450,
-      "sha256": "3d8845e3635c559126a77d03ceaee6e1e7ca05f7d6469e2e55b0b91ce57f37bc"
+      "size": 4627,
+      "sha256": "c5adc1891e5b8fcfe56d7651755815b6279507f111262788936ec758b9376888"
     },
     {
       "path": "package.json",
       "size": 529,
-      "sha256": "c034c501fe2deb477771c4ebb1e50f2c158cfe4df218e2e64a8c61ae09efc27c"
+      "sha256": "506ff418385588429187705522f5f477ca02812a139be830378432a62851d6d2"
     }
   ]
 }
