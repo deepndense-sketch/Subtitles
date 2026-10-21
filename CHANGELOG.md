@@ -1,3 +1,7 @@
+## 1.9.9
+
+- Reserve timing slots for the full numeric extra group, including variants already imported. A missing lower suffix no longer takes the final slot belonging to the highest suffix. Existing clips remain unchanged.
+
 ## 1.9.8
 
 - Detect stalled update helpers through periodic status timestamps; cancel stale jobs and offer Retry instead of leaving Update pending indefinitely.

@@ -1,11 +1,11 @@
 {
-  "version": "1.9.8",
+  "version": "1.9.9",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1544,
-      "sha256": "4825b97d5b1a9f96c0ba875578395ba517d36f5c159b2617fcb9ff38ed5fa29a"
+      "sha256": "4efdb7a5cceba220544414af0a8d57fd622c7a6fb0f21094ab59c3d7dd31dbf1"
     },
     {
       "path": "css/style.css",
@@ -15,7 +15,7 @@
     {
       "path": "index.html",
       "size": 8370,
-      "sha256": "92d571c540e62d2703b26c265e16af78ccc8ea682003fc44e0b89e249d49bf11"
+      "sha256": "a3033f4b7b4a515a27874d15600803ec74d27d0061b7287b61ec592135ed01f3"
     },
     {
       "path": "js/main.js",
@@ -29,8 +29,8 @@
     },
     {
       "path": "jsx/subtitle_navigator.jsx",
-      "size": 54525,
-      "sha256": "91cb400ed1073192f8cf1822f4161e08af2a05b023603eaaf2bd3e19ac4181b3"
+      "size": 54819,
+      "sha256": "8252dadfb35a18d461273e252cf6267e0b48fbce532fbc9607294caaec52fd7c"
     },
     {
       "path": "lib/subtitle-index.js",
@@ -60,7 +60,7 @@
     {
       "path": "package.json",
       "size": 529,
-      "sha256": "506ff418385588429187705522f5f477ca02812a139be830378432a62851d6d2"
+      "sha256": "0269741c691190c695e09f44387ce9e7ae642f6881e2893e8464442ec92de0b5"
     }
   ]
 }

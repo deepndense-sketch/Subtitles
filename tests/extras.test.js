@@ -181,7 +181,7 @@ assert.strictEqual(a.undo().ok,true);assert.strictEqual(a.tracks[1].clips.length
 // Existing variants anywhere in the sequence are skipped. A standalone _1 is normal.
 const b=setup([[['Topic.png',0,10],['Orphan_1.png',20,25]],[],[['Topic_1.png',1,2]]],['Topic_1.png','Topic_3.png','Orphan_1.png','Orphan_2.png']);
 r=b.run();assert.strictEqual(r.count,1);assert.strictEqual(r.skipped,2);assert.strictEqual(r.unmatched,1);
-assert.deepStrictEqual(spans(b.tracks[1]),[['Topic_3.png',5,10]]);
+assert.deepStrictEqual(spans(b.tracks[1]),[['Topic_3.png',6.68,10]]);
 
 // Case insensitive matching, exact prefixes, and existing project-bin item reuse.
 const c=setup([[['Case.PNG',0,10]],[]],['CASE_1.PNG','Unrelated Case_2.png']);
@@ -395,3 +395,12 @@ assert.strictEqual(limitedColor.tracks[1].clips[0].label,6);
 assert.strictEqual(limitedColor.undo().ok,true);
 assert.strictEqual(limitedColor.redo().ok,true);
 assert.strictEqual(limitedColor.tracks[1].clips[0].label,6);
+
+// Already imported higher suffixes must reserve their slots: _1 is never last.
+const partial=setup([[['base.png',0,8]],[],[['base_2.png',4,6],['base_3.png',6,8]]],['base_3.png','base_1.png','base_2.png']);
+assert.strictEqual(partial.run().ok,true);
+assert.deepStrictEqual(spans(partial.tracks[1]),[['base_1.png',2,4]]);
+assert.deepStrictEqual(spans(partial.tracks[2]),[['base_2.png',4,6],['base_3.png',6,8]]);
+const numeric=setup([[['base.png',0,8]],[]],['base_3.png','base_1.png','base_2.png']);
+assert.strictEqual(numeric.run().ok,true);
+assert.deepStrictEqual(spans(numeric.tracks[1]),[['base_1.png',2,4],['base_2.png',4,6],['base_3.png',6,8]]);

@@ -482,14 +482,18 @@ function psnPlanExtras(paths, originals, seen, occupied, frame) {
         var normalized=psnNormalizePath(paths[i]);
         if(names["$"+normalized]) continue;
         names["$"+normalized]=true;
-        if(seen["$"+normalized] || seen["@"+name]) { skipped++; continue; }
+        var alreadyImported=!!(seen["$"+normalized] || seen["@"+name]);
+        if(alreadyImported) skipped++;
         key="$"+normalized.substring(0,normalized.lastIndexOf("/")+1)+match[1]+".png";
-        if(!anchors[key]) { unmatched++; continue; }
+        if(!anchors[key]) { if(!alreadyImported) unmatched++; continue; }
         if(!groups[key]) groups[key]=[];
-        groups[key].push({path:paths[i],name:name,variant:Number(match[2])});
+        groups[key].push({path:paths[i],name:name,variant:Number(match[2]),alreadyImported:alreadyImported});
     }
     for(key in groups) if(groups.hasOwnProperty(key)) {
-        var variants=groups[key], anchor=psnLastExtraAnchor(anchors[key]);
+        var variants=groups[key], missingCount=0;
+        for(i=0;i<variants.length;i++) if(!variants[i].alreadyImported) missingCount++;
+        if(!missingCount) continue;
+        var anchor=psnLastExtraAnchor(anchors[key]);
         if(anchors[key].length>1) repeatedGroups++;
         variants.sort(function(a,b){return a.variant-b.variant || (a.name<b.name ? -1 : 1);});
         if(!isFinite(frame) || frame<=0 || anchor.start<0) throw Error("Invalid original subtitle timing.");
@@ -498,6 +502,7 @@ function psnPlanExtras(paths, originals, seen, occupied, frame) {
         var frames=Math.round((anchor.end-anchor.start)/frame), portions=variants.length+1;
         if(frames<portions) throw Error("Not enough frames to give each subtitle a frame: "+anchor.name);
         for(i=0;i<variants.length;i++) {
+            if(variants[i].alreadyImported) continue;
             var start=anchor.end-Math.round((variants.length-i)*frames/portions)*frame;
             var end=anchor.end-Math.round((variants.length-i-1)*frames/portions)*frame;
             plan.push({path:variants[i].path,name:variants[i].name,start:start,end:end,parentStart:anchor.start,parentEnd:anchor.end,align:"end"});
