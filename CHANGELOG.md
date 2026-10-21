@@ -1,3 +1,8 @@
+## 1.9.7
+
+- Publish the extra-subtitle timing and duration-color fixes under a new version so installations already running 1.9.6 receive an update offer.
+- Extras share the original duration equally and finish at its unchanged end; clips below one second are red, and clips at least one second long are green.
+
 ## 1.9.6
 
 - Divide original duration into equal original-plus-extra portions, ending the last extra at the unchanged original end. Label actual extras red below one second and green at or above one second; update preview and regression coverage.

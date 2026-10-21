@@ -1,11 +1,11 @@
 {
-  "version": "1.9.6",
+  "version": "1.9.7",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1544,
-      "sha256": "bbbac3864b55e734fbd82d6bafee1ff70da871876783d644c087a01c07577c03"
+      "sha256": "6c017710dc90fc57f0a644216ac99227ccb671118ca0112e972f521694119777"
     },
     {
       "path": "css/style.css",
@@ -15,7 +15,7 @@
     {
       "path": "index.html",
       "size": 8370,
-      "sha256": "24f1a0de0ff45ef5016bbda66fa5edb66b6aa9b12665f72dd88898831b297479"
+      "sha256": "b409dd43927a5353cb727661a13c8f78ea409826c463d68623c2a60f814d1d78"
     },
     {
       "path": "js/main.js",
@@ -60,7 +60,7 @@
     {
       "path": "package.json",
       "size": 529,
-      "sha256": "adb8fb2d66722ba51ed8b576888223922f5798c3b577d4eebaec4004d5ae74eb"
+      "sha256": "c034c501fe2deb477771c4ebb1e50f2c158cfe4df218e2e64a8c61ae09efc27c"
     }
   ]
 }
