@@ -1,3 +1,14 @@
+## 1.9.6
+
+- Divide original duration into equal original-plus-extra portions, ending the last extra at the unchanged original end. Label actual extras red below one second and green at or above one second; update preview and regression coverage.
+
+- Synchronize clip source in/out spans with timeline duration during edits and Extra Sub placement, and verify them after moving each imported PNG. Keep reused-PNG shorter-duration fallback and avoid changing project-bin in/out marks.
+- Normalize stale source duration in the undo snapshot for edited still PNGs, so undo restores the previous visible timing without reintroducing the old duration mismatch.
+
+- Add a guarded overlap-repair preview for PNG subtitle tracks. Trim overlong tails to the next clip, preserve starts and other clips, verify the result, and support undo/redo. Refuse stale previews and ambiguous same-start stacks.
+- Reapply saved timeline bounds after restoring source in/out points, preventing source setter side effects from leaving shifted bounds during undo or rollback.
+- Explain existing overlaps with a recovery action instead of only directing users to a backup.
+
 ## 1.9.5
 
 - Accept repeated original PNGs: merge touching split pieces for timing and anchor each missing extra once to the final occurrence. Preserve originals and duplicate-import protection. Show repeated-original handling as a note without blocking import.

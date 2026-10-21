@@ -197,6 +197,40 @@ async function syncWithLocal() {
   } finally { busy = false; $("syncLocal").disabled = false; }
 }
 
+async function repairOverlaps() {
+  if (busy) return;
+  if (active) stopListener();
+  if (!$("trackSelect").options.length && !(await refreshTracks())) return;
+  busy = true;
+  $("repairOverlaps").disabled = true;
+  try {
+    const preview = parseHost(await callHost("psnPrepareOverlapRepair(" + currentTrackIndex() + ")"));
+    if (!preview.ok) throw new Error(preview.error);
+    if (!preview.count) { setStatus("No overlapping subtitles on V" + (preview.trackIndex + 1) + ".", "good"); return; }
+    $("overlapSummary").textContent = preview.count + " overlapping PNG(s) on V" + (preview.trackIndex + 1) + ". Review the proposed end times:";
+    $("overlapDetails").textContent = preview.details;
+    const dialog = $("overlapConfirm");
+    const accepted = await new Promise(resolve => {
+      const finish = value => {
+        dialog.close();
+        $("overlapCancel").onclick = $("overlapAccept").onclick = dialog.oncancel = null;
+        resolve(value);
+      };
+      $("overlapCancel").onclick = () => finish(false);
+      $("overlapAccept").onclick = () => finish(true);
+      dialog.oncancel = event => { event.preventDefault(); finish(false); };
+      dialog.showModal();
+      $("overlapCancel").focus();
+    });
+    if (!accepted) { setStatus("Repair cancelled. No subtitles changed.", ""); return; }
+    const result = parseHost(await callHost("psnApplyOverlapRepair()"));
+    if (!result.ok) throw new Error(result.error);
+    setStatus("Repaired " + result.count + " overlapping PNG(s). Use Undo Subtitle Edit to restore their previous timing.", "good");
+    $("currentFile").textContent = "Scrub the repaired range to check the subtitles. Activate shortcuts again when ready.";
+  } catch (error) { setStatus(error.message || String(error), "bad"); }
+  finally { busy = false; $("repairOverlaps").disabled = false; }
+}
+
 function confirmExtraImport(trackIndex, count, issue, preview) {
   const dialog = $("extraConfirm");
   $("extraFoundResult").hidden = !preview;
@@ -220,7 +254,7 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
     }
     $("extraFoundNumber").textContent = String(preview.count);
     $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
-    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras. " + preview.green + " green: within parent timing. " + preview.red + " red: extend outside parent timing." : "There are no new extra subtitles to import for this track.";
+    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
     $("extraConfirmQuestion").textContent = preview.count ? "Import these extras?" : "Your sequence has not been changed.";
   }
   return new Promise(resolve => {
@@ -284,7 +318,7 @@ async function importExtras() {
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
       (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : "") +
       (result.repeatedGroups ? " Note: extras for " + result.repeatedGroups + " repeated original(s) were aligned to the last occurrence." : ""), "good");
-    $("currentFile").textContent = result.count ? result.groups + " groups aligned. Originals under 2 seconds: extras start afterward; longer originals: extras end with them. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
+    $("currentFile").textContent = result.count ? result.groups + " groups aligned. Original duration is divided equally between the original and its extras. The last extra ends at the original end; original clips are unchanged. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
   } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }
   finally { busy = false; $("importExtras").disabled = false; await refreshTracks(); }
 }
@@ -498,6 +532,7 @@ function initialize() {
   });
   $("activate").addEventListener("click", toggleActive);
   $("syncLocal").addEventListener("click", syncWithLocal);
+  $("repairOverlaps").addEventListener("click", repairOverlaps);
   $("advance").addEventListener("click", () => requestEdit("left"));
   $("previous").addEventListener("click", () => requestEdit("right"));
   $("undo").addEventListener("click", () => requestEdit("undo"));

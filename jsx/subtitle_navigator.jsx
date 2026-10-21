@@ -67,7 +67,7 @@ function psnEqual(a,b) {
     }
     return true;
 }
-function psnCheckTrack(track, rows) {
+function psnCheckTrack(track, rows, allowOverlap) {
     if (track.isLocked && track.isLocked()) throw Error("The subtitle track is locked.");
     var ids = {};
     for(var i=0;i<rows.length;i++) {
@@ -75,8 +75,8 @@ function psnCheckTrack(track, rows) {
         if (!r.id || r.id === "undefined" || ids[r.id]) throw Error("Premiere did not provide unique clip identities.");
         ids[r.id]=true;
         if (!isFinite(r.start) || !isFinite(r.end) || r.end <= r.start) throw Error("Invalid subtitle duration. Check the timeline.");
-        if(i && rows[i-1].end > r.start + psnEpsilon)
-            throw Error("Overlapping subtitles already exist on this track. No edits made. Restore the track from a known-good project backup before continuing.");
+        if(!allowOverlap && i && rows[i-1].end > r.start + psnEpsilon)
+            throw Error("Overlapping subtitles exist on this track. No edits made. Use Check / Repair Overlaps in Adjust/Add Sub to preview a repair.");
     }
 }
 function psnResolve(track, id) {
@@ -90,13 +90,58 @@ function psnSetTime(clip, field, seconds) {
     clip[field]=time;
     if (Math.abs(psnSeconds(clip[field])-seconds)>psnEpsilon) throw Error("Premiere did not apply the subtitle " + field + " exactly.");
 }
-function psnBounds(track, row) {
+function psnTimelineBounds(track, row) {
     var c=psnResolve(track,row.id);
     // Shrink before expanding to avoid temporarily covering an adjacent subtitle.
     if(row.start > psnSeconds(c.start)) psnSetTime(c,"start",row.start);
     if(row.end < psnSeconds(c.end)) psnSetTime(c,"end",row.end);
     psnSetTime(c,"start",row.start);
     psnSetTime(c,"end",row.end);
+}
+function psnClipRate(clip) {
+    var rate=clip.getSpeed ? Math.abs(Number(clip.getSpeed())) : 1;
+    if(!isFinite(rate) || rate<=0) throw Error("Cannot verify subtitle playback speed.");
+    return rate;
+}
+function psnSourceSpan(clip,start,end) {
+    if(!clip.inPoint || !clip.outPoint) return null;
+    var rate=psnClipRate(clip), input=psnSeconds(clip.inPoint)+(start-psnSeconds(clip.start))*rate;
+    // Still PNGs can reuse any source frame, including when extending before 0.
+    if(input<0 && psnClipPngName(clip)) input=0;
+    if(input<0) throw Error("The requested trim is before the available source media.");
+    return {inPoint:input,outPoint:input+(end-start)*rate};
+}
+function psnBounds(track,row) {
+    var clip=psnResolve(track,row.id);
+    var source=row.inPoint!==undefined && row.outPoint!==undefined ? row : psnSourceSpan(clip,row.start,row.end);
+    if(source) {
+        // A timeline end is not a source out point. Update the instance's source
+        // range too; otherwise later moves/undo can retain the old media extent.
+        if(source.inPoint<psnSeconds(clip.outPoint)) {
+            psnSetTime(clip,"inPoint",source.inPoint);
+            psnSetTime(clip,"outPoint",source.outPoint);
+        } else {
+            psnSetTime(clip,"outPoint",source.outPoint);
+            psnSetTime(clip,"inPoint",source.inPoint);
+        }
+    }
+    psnTimelineBounds(track,row);
+    if(source && (Math.abs(psnSeconds(clip.inPoint)-source.inPoint)>psnEpsilon ||
+        Math.abs(psnSeconds(clip.outPoint)-source.outPoint)>psnEpsilon))
+        throw Error("Premiere did not preserve the subtitle source timing.");
+}
+function psnResizeExtra(track,id,duration,frame) {
+    var clip=psnResolve(track,id), start=psnSeconds(clip.start), input=psnSeconds(clip.inPoint);
+    if(!clip.inPoint || !clip.outPoint) throw Error("Premiere did not provide PNG source timing.");
+    var rate=psnClipRate(clip);
+    // Both timeline and source setters may impose a shorter available length.
+    try { psnSetTime(clip,"end",start+duration); } catch(ignoreEnd) {}
+    var span=Math.min(duration,psnSeconds(clip.end)-start);
+    try { psnSetTime(clip,"outPoint",input+span*rate); } catch(ignoreOut) {}
+    span=Math.min(span,(psnSeconds(clip.outPoint)-input)/rate);
+    if(!isFinite(span) || span<frame-psnEpsilon) throw Error("The PNG has no usable source duration.");
+    psnBounds(track,{id:id,start:start,end:start+span,inPoint:input,outPoint:input+span*rate});
+    return span;
 }
 function psnRestore(track, desired) {
     // First free occupied ranges, then expand into those ranges.
@@ -111,15 +156,18 @@ function psnRestore(track, desired) {
         if(r.inPoint!==undefined) psnSetTime(c,"inPoint",r.inPoint);
         if(r.outPoint!==undefined) psnSetTime(c,"outPoint",r.outPoint);
     }
+    // Source-point setters can shift timeline bounds in Premiere. Reapply the
+    // saved timeline after ALL source points, not before them, then verify both.
+    for(i=0;i<desired.length;i++) psnBounds(track,desired[i]);
     if(!psnEqual(psnSnapshot(track),desired)) throw Error("Subtitle restoration could not be verified.");
 }
-function psnContext(trackIndex) {
+function psnContext(trackIndex, allowOverlap) {
     var sequence=app.project.activeSequence;
     if(!sequence) throw Error("Open an active sequence first.");
     var track=psnGetVideoTrack(sequence,trackIndex);
     if(!track) throw Error("Choose an existing video track.");
     var before=psnSnapshot(track);
-    psnCheckTrack(track,before);
+    psnCheckTrack(track,before,allowOverlap);
     if(!before.length) throw Error("No clips are on the selected subtitle track.");
     return { sequence:sequence, track:track, before:before, key:psnSequenceKey(sequence) };
 }
@@ -144,7 +192,20 @@ function psnApplyEdit(ctx,trackIndex,changes,label) {
         }
         if(!psnEqual(after,expected)) throw Error("Premiere changed an unexpected clip or boundary.");
         psnCheckTrack(ctx.track,after);
-        psnUndoHistory.push({sequenceKey:ctx.key,trackIndex:Number(trackIndex),before:before,after:after,label:label});
+        // Old versions may have left a still's source extent out of sync.
+        // Undo restores its previous visible range with a coherent source span,
+        // rather than reintroducing that stale duration into a newly safe edit.
+        var historyBefore=[];
+        for(i=0;i<before.length;i++) {
+            var saved={}; for(var field in before[i]) saved[field]=before[i][field];
+            for(j=0;j<changes.length;j++) if(changes[j].id===saved.id && saved.inPoint!==undefined && saved.outPoint!==undefined) {
+                var originalClip=psnResolve(ctx.track,saved.id), rate=psnClipRate(originalClip);
+                if(Math.abs((saved.outPoint-saved.inPoint)/rate-(saved.end-saved.start))>psnEpsilon && psnClipPngName(originalClip))
+                    saved.outPoint=saved.inPoint+(saved.end-saved.start)*rate;
+            }
+            historyBefore.push(saved);
+        }
+        psnUndoHistory.push({sequenceKey:ctx.key,trackIndex:Number(trackIndex),before:historyBefore,after:after,label:label});
         psnRedoHistory=[];
         return after;
     } catch(e) {
@@ -265,6 +326,41 @@ function psnImportAll(planPath, trackIndex) {
     } catch (e) { return psnError(e.toString()); }
 }
 
+// Preview is read-only. Keep a complete snapshot so edits while the dialog is
+// open cannot silently change the proposed repair. Never delete stacked clips.
+var psnOverlapPreview = null;
+function psnPrepareOverlapRepair(trackIndex) {
+    psnOverlapPreview=null;
+    try {
+        var ctx=psnContext(trackIndex,true), changes=[], details=[];
+        for(var i=0;i<ctx.before.length-1;i++) {
+            var row=ctx.before[i], next=ctx.before[i+1];
+            if(row.end<=next.start+psnEpsilon) continue;
+            if(next.start<=row.start+psnEpsilon)
+                throw Error("Two clips start at the same time. Separate these stacked clips manually; no clips were changed.");
+            var clip=psnResolve(ctx.track,row.id);
+            if(!psnClipPngName(clip)) throw Error("An overlapping clip is not a PNG. Choose the subtitle track; no clips were changed.");
+            changes.push({id:row.id,start:row.start,end:next.start});
+            details.push(psnItemName(clip)+": end "+row.end.toFixed(3)+"s -> "+next.start.toFixed(3)+"s");
+        }
+        psnOverlapPreview={sequenceKey:ctx.key,trackIndex:Number(trackIndex),before:ctx.before,changes:changes};
+        return psnJson({ok:true,count:changes.length,trackIndex:Number(trackIndex),details:details.join("\n")});
+    } catch(e) { return psnError(e.toString()); }
+}
+function psnApplyOverlapRepair() {
+    var preview=psnOverlapPreview; psnOverlapPreview=null;
+    try {
+        if(!preview) throw Error("Check for overlaps again before repairing.");
+        var ctx=psnContext(preview.trackIndex,true);
+        if(ctx.key!==preview.sequenceKey || !psnEqual(ctx.before,preview.before))
+            throw Error("The sequence or track changed after the preview. Check again; no clips were changed.");
+        if(!preview.changes.length) return psnJson({ok:true,count:0});
+        psnApplyEdit(ctx,preview.trackIndex,preview.changes,"Repair subtitle overlaps");
+        psnUndoHistory[psnUndoHistory.length-1].kind="overlap-repair";
+        return psnJson({ok:true,count:preview.changes.length,trackIndex:preview.trackIndex});
+    } catch(e) { return psnError(e.toString()); }
+}
+
 function psnValidateSubtitleTrack(trackIndex) {
     try { var ctx=psnContext(trackIndex); return psnJson({ok:true,count:ctx.before.length,trackIndex:Number(trackIndex)}); }
     catch(e) { return psnError(e.toString()); }
@@ -322,7 +418,7 @@ function psnHistoryEdit(trackIndex,redo) {
             source.pop(); destination.push(last);
             return psnJson({ok:true,remaining:source.length,label:last.label});
         }
-        var ctx=psnContext(trackIndex);
+        var ctx=psnContext(trackIndex,last.kind==="overlap-repair");
         if(last.sequenceKey!==ctx.key || last.trackIndex!==Number(trackIndex)) throw Error("Return to the sequence and track used for that subtitle edit.");
         var expected=redo ? last.before : last.after, desired=redo ? last.after : last.before;
         if(!psnEqual(ctx.before,expected)) throw Error("The subtitle track changed outside this tool. Undo/redo stopped to avoid overlaps; no clips were changed.");
@@ -373,7 +469,7 @@ function psnLastExtraAnchor(rows) {
     }
     return last;
 }
-function psnPlanExtras(paths, originals, seen, occupied, duration) {
+function psnPlanExtras(paths, originals, seen, occupied, frame) {
     var anchors={}, groups={}, names={}, plan=[], skipped=0, unmatched=0, groupCount=0, repeatedGroups=0, i,key;
     for(i=0;i<originals.length;i++) {
         key="$"+psnNormalizePath(originals[i].path);
@@ -396,11 +492,16 @@ function psnPlanExtras(paths, originals, seen, occupied, duration) {
         var variants=groups[key], anchor=psnLastExtraAnchor(anchors[key]);
         if(anchors[key].length>1) repeatedGroups++;
         variants.sort(function(a,b){return a.variant-b.variant || (a.name<b.name ? -1 : 1);});
-        if(!isFinite(anchor.end) || !isFinite(duration) || duration<=0) throw Error("Invalid original subtitle timing.");
-        var alignAfter=isFinite(anchor.start) && anchor.end-anchor.start<2-psnEpsilon;
-        var start=alignAfter ? anchor.end : anchor.end-variants.length*duration;
-        if(start < -psnEpsilon) throw Error("Extra subtitles for "+anchor.name+" would start before the sequence. No clips imported.");
-        for(i=0;i<variants.length;i++) plan.push({path:variants[i].path,name:variants[i].name,start:Math.max(0,start+i*duration),end:alignAfter ? start+(i+1)*duration : anchor.end-(variants.length-i-1)*duration,parentStart:anchor.start,parentEnd:anchor.end,align:alignAfter ? "start" : "end"});
+        if(!isFinite(frame) || frame<=0 || anchor.start<0) throw Error("Invalid original subtitle timing.");
+        // Reserve the first equal portion for the original; place the extras in
+        // the remaining portions, anchored backwards from its unchanged end.
+        var frames=Math.round((anchor.end-anchor.start)/frame), portions=variants.length+1;
+        if(frames<portions) throw Error("Not enough frames to give each subtitle a frame: "+anchor.name);
+        for(i=0;i<variants.length;i++) {
+            var start=anchor.end-Math.round((variants.length-i)*frames/portions)*frame;
+            var end=anchor.end-Math.round((variants.length-i-1)*frames/portions)*frame;
+            plan.push({path:variants[i].path,name:variants[i].name,start:start,end:end,parentStart:anchor.start,parentEnd:anchor.end,align:"end"});
+        }
         groupCount++;
     }
     plan.sort(function(a,b){return a.start-b.start;});
@@ -474,7 +575,7 @@ function psnPlaceExtras(track,plan,before) {
             for(t=0;t<plan.length;t++) tail=Math.max(tail,plan[t].end);
             var stagingStart=(Math.ceil(tail/frame)+2)*frame;
             // Newly inserted timeline instances inherit the project item's label.
-            var label=psnExtraFitsParent(p) ? greenLabel : redLabel;
+            var label=psnExtraIsGreen(p) ? greenLabel : redLabel;
             source.setColorLabel(label);
             if(Number(source.getColorLabel())!==label) throw Error("Premiere could not set the extra subtitle label color.");
             track.overwriteClip(source,stagingStart);
@@ -486,16 +587,27 @@ function psnPlaceExtras(track,plan,before) {
             var actualStart=psnSeconds(clip.start);
             if(actualStart<tail-psnEpsilon) throw Error("Premiere did not insert the PNG in the empty staging area.");
             var requestedDuration=p.end-p.start;
-            try { psnSetTime(clip,"end",actualStart+requestedDuration); }
-            catch(resizeError) {
-                // Some reused stills cannot extend beyond their available range.
-                // Accept only a valid shorter clip; keep its planned alignment edge.
-            }
+            var availableDuration=psnResizeExtra(track,ids[0],requestedDuration,frame);
             clip=psnResolve(track,ids[0]);
-            var availableDuration=psnSeconds(clip.end)-psnSeconds(clip.start);
             if(Math.abs(psnSeconds(clip.start)-actualStart)>psnEpsilon || !isFinite(availableDuration) ||
                 availableDuration<frame-psnEpsilon || availableDuration>requestedDuration+psnEpsilon)
                 throw Error("Premiere could not give the extra subtitle a valid duration at or below the requested length: "+p.name);
+            // A source-limited still can cross the one-second color threshold.
+            // Reinsert in the empty staging area to inherit the correct label.
+            var actualLabel=psnExtraIsGreen({start:0,end:availableDuration}) ? greenLabel : redLabel;
+            if(actualLabel!==label) {
+                clip.remove(false,false);
+                source.setColorLabel(actualLabel);
+                if(Number(source.getColorLabel())!==actualLabel) throw Error("Premiere could not set the extra subtitle label color.");
+                track.overwriteClip(source,stagingStart);
+                ids=psnExtraNewIds(track,previous);
+                if(ids.length!==1) throw Error("Premiere did not place exactly one extra subtitle.");
+                var resized=psnResizeExtra(track,ids[0],availableDuration,frame);
+                if(Math.abs(resized-availableDuration)>psnEpsilon) throw Error("Premiere changed the extra duration while applying its label.");
+                clip=psnResolve(track,ids[0]);
+                actualStart=psnSeconds(clip.start);
+                if(Math.abs(actualStart-stagingStart)>psnEpsilon) throw Error("Premiere did not preserve the staging position.");
+            }
             var alignedStart=p.align==="start" ? p.start : p.end-availableDuration;
             var alignedEnd=p.align==="start" ? p.start+availableDuration : p.end;
             var offset=new Time(); offset.seconds=alignedStart-actualStart;
@@ -504,6 +616,8 @@ function psnPlaceExtras(track,plan,before) {
             clip=psnResolve(track,ids[0]);
             if(psnNormalizePath(psnProjectItemPath(clip.projectItem))!==psnNormalizePath(p.path) || Math.abs(psnSeconds(clip.start)-alignedStart)>psnEpsilon || Math.abs(psnSeconds(clip.end)-alignedEnd)>psnEpsilon)
                 throw Error("Premiere placed an extra subtitle at an unexpected time.");
+            if(Math.abs((psnSeconds(clip.outPoint)-psnSeconds(clip.inPoint))/psnClipRate(clip)-availableDuration)>psnEpsilon)
+                throw Error("Premiere changed the PNG source duration while moving it.");
             placed.push(ids[0]);
             actualPlacements.push({start:alignedStart,end:alignedEnd,shortened:availableDuration<requestedDuration-psnEpsilon || p.shortened===true});
             var after=psnSnapshot(track), kept=[];
@@ -538,8 +652,8 @@ function psnFindExtraPaths(originals) {
     }
     return paths;
 }
-function psnExtraFitsParent(p) {
-    return isFinite(p.parentStart) && isFinite(p.parentEnd) && p.start>=p.parentStart-psnEpsilon && p.end<=p.parentEnd+psnEpsilon;
+function psnExtraIsGreen(p) {
+    return isFinite(p.start) && isFinite(p.end) && p.end-p.start>=1-psnEpsilon;
 }
 function psnExtraPlanKey(result) {
     var parts=[];
@@ -572,13 +686,13 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
         var frame=Number(seq.timebase)/254016000000;
         if(!isFinite(frame) || frame<=0) throw Error("Could not read the sequence frame rate.");
         var duration=Math.max(1,Math.round(1/frame))*frame;
-        var result=psnPlanExtras(psnFindExtraPaths(originals),originals,psnSequencePngNames(seq),before,duration);
+        var result=psnPlanExtras(psnFindExtraPaths(originals),originals,psnSequencePngNames(seq),before,frame);
         var planKey=psnExtraPlanKey(result);
         if(expectedKey!==undefined && expectedKey!==planKey) throw Error("The extra files or their placement changed after the search. Search again before importing.");
         if(previewOnly) {
             psnExtraDetection.previewKey=planKey;
             var green=0, totalPngClips=0;
-            for(i=0;i<result.plan.length;i++) if(psnExtraFitsParent(result.plan[i])) green++;
+            for(i=0;i<result.plan.length;i++) if(psnExtraIsGreen(result.plan[i])) green++;
             for(i=0;i<clips.numItems;i++) if(psnClipPngName(clips[i])) totalPngClips++;
             return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,count:result.plan.length,green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,skipped:result.skipped,unmatched:result.unmatched});
         }
@@ -589,7 +703,7 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
         psnRedoHistory=[];
         var shortened=0;
         for(i=0;i<result.plan.length;i++) if(result.plan[i].shortened) shortened++;
-        return psnJson({ok:true,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,duration:duration,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
+        return psnJson({ok:true,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
     } catch(e) { return psnError(e.toString()); }
 }
 function psnExtraHistory(last,trackIndex,redo) {

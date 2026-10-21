@@ -46,6 +46,7 @@
         <select id="trackSelect"></select>
         <button id="refreshTracks" class="secondary">Refresh Tracks</button>
       </div>
+      <button id="repairOverlaps" type="button">Check / Repair Overlaps</button>
       <p class="muted small">Every clip on this track is treated as a subtitle. Existing clips work without importing again. Use a dedicated subtitle track.</p>
       <div role="region" aria-label="Local subtitle comparison" id="syncReport" class="sync-report" aria-live="polite" hidden>
         <h3>Sync with local</h3>
@@ -68,7 +69,7 @@
     </section>
     <section class="card">
       <h2>Status</h2>
-      <div id="status" class="status">Ready. v1.9.5 — choose a subtitle track to import extras.</div>
+      <div id="status" class="status">Ready. v1.9.6 — choose a subtitle track to import extras.</div>
       <div id="currentFile" class="current">No operation yet.</div>
     </section>
     <details id="manualControls" class="card manual-controls">
@@ -86,7 +87,7 @@
       <p class="muted small">Left Arrow brings the nearest clip starting to the right of the playhead. Right Arrow brings the nearest clip ending to the left of the playhead.</p>
       <p class="muted small">Its beginning is extended back to the playhead while its end stays in place. Only the subtitle covering the playhead is trimmed to end there. Right Arrow extends the previous subtitle's end to the playhead and trims the covering subtitle's start if necessary. Undo restores both edits.</p>
       <p class="muted small">While active in Premiere: ← brings the next subtitle; → brings the previous subtitle; [ trims left; ] trims right. L and R keep their normal Premiere functions. Ctrl+Z / Ctrl+Shift+Z undo / redo subtitle edits only. Deactivate to release all subtitle shortcuts.</p>
-      <p class="muted small">Use this panel's Undo for tool edits. Premiere's Edit → Undo uses a separate history and may undo an older edit. History lasts until the panel or project is reloaded. Existing overlaps must be recovered from a known-good project backup.</p>
+      <p class="muted small">Use this panel's Undo for tool edits. Premiere's Edit → Undo uses a separate history and may undo an older edit. History lasts until the panel or project is reloaded. Check / Repair Overlaps previews trimming long PNG tails to the next clip. Undo restores the original timing, including its overlaps.</p>
       </div>
     </details>
   </main>
@@ -106,6 +107,16 @@
     <div class="confirm-actions">
       <button id="extraConfirmCancel" type="button">Cancel</button>
       <button id="extraConfirmAccept" type="button">Yes, import extras</button>
+    </div>
+  </dialog>
+  <dialog id="overlapConfirm" class="extra-confirm" aria-labelledby="overlapTitle">
+    <h2 id="overlapTitle">Repair subtitle overlaps</h2>
+    <p id="overlapSummary"></p>
+    <pre id="overlapDetails" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:35vh;overflow:auto"></pre>
+    <p>Trim each listed PNG's end to the next clip's start. Starts and other clips stay in place. This cannot recover the original intended end time. Undo Subtitle Edit restores the previous timing, including overlaps.</p>
+    <div class="confirm-actions">
+      <button id="overlapCancel" type="button">Cancel</button>
+      <button id="overlapAccept" type="button">Repair overlaps</button>
     </div>
   </dialog>
   <dialog id="updateDialog" class="extra-confirm" aria-labelledby="updateDialogVersion">

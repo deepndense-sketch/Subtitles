@@ -34,7 +34,7 @@ function setup(trackSpecs, files, options = {}) {
         inPoint:{seconds:0},outPoint:{seconds:end-start},label:source.getColorLabel(),
         move(offset) {
           if(options.failMove) return false;
-          const newStart=this.start.seconds+offset.seconds,newEnd=this.end.seconds+offset.seconds;
+          const newStart=this.start.seconds+offset.seconds,newEnd=options.moveUsesSourceDuration ? newStart+this.outPoint.seconds-this.inPoint.seconds : this.end.seconds+offset.seconds;
           assert(clips.every(c=>c===this || c.end.seconds<=newStart+1e-6 || c.start.seconds>=newEnd-1e-6),'final move must not overlap other clips');
           this.start.seconds=newStart;this.end.seconds=newEnd;
         },
@@ -81,7 +81,7 @@ function setup(trackSpecs, files, options = {}) {
     run:(source=0,dest=1)=>JSON.parse(context.psnImportExtras(source,dest)),
     undo:(source=0)=>JSON.parse(context.psnUndoLastAdvance(source)),redo:(source=0)=>JSON.parse(context.psnRedoLastAdvance(source)) };
 }
-function spans(track) { return Array.from(track.clips,c=>[c.projectItem.name,c.start.seconds,c.end.seconds]).sort((a,b)=>a[1]-b[1]); }
+function spans(track) { return Array.from(track.clips,c=>[c.projectItem.name,+c.start.seconds.toFixed(6),+c.end.seconds.toFixed(6)]).sort((a,b)=>a[1]-b[1]); }
 
 // Generic ordered filenames: prefer the largest qualifying track, allow gaps and descending order.
 const detect=setup([
@@ -99,7 +99,7 @@ assert.strictEqual(detect.imports(),0);
 let detectedImport=JSON.parse(detect.context.psnImportDetectedExtras());
 assert.strictEqual(detectedImport.ok,true,detectedImport.error);
 assert.strictEqual(detectedImport.count,1,'unrelated logo on the detected track is not imported');
-assert.deepStrictEqual(spans(detect.tracks[2]),[['My show 701_1.png',11,12]]);
+assert.deepStrictEqual(spans(detect.tracks[2]),[['My show 701_1.png',10.48,12]]);
 const repeatedTotal=setup([[['Main 001.png',0,3],['Main 001.png',3,6],['Main 002.png',6,9],['Other 001.png',9,12],['Other 002.png',12,15],['Other 003.png',15,18],['blank.png',18,21],['video.mov',21,24]]],[]);
 const totalResult=JSON.parse(repeatedTotal.context.psnDetectExtraSource());
 assert.strictEqual(totalResult.count,3);
@@ -125,7 +125,7 @@ for(const afterIndex of [false,true]) {
   assert.strictEqual(result.trackIndex,14);
   assert.strictEqual(v14.tracks.length,17);
   for(let i=0;i<16;i++) assert.strictEqual(v14.tracks[i<14 ? i : i+1],originalTracks[i]);
-  assert.deepStrictEqual(spans(v14.tracks[14]),[['FN 3289-0514_1.png',7,8]]);
+  assert.deepStrictEqual(spans(v14.tracks[14]),[['FN 3289-0514_1.png',5,8]]);
   assert.strictEqual(v14.undo(13).ok,true);
   assert.strictEqual(v14.redo(13).ok,true);
   assert.strictEqual(JSON.parse(v14.context.psnImportExtras(13)).count,0);
@@ -142,7 +142,7 @@ assert.strictEqual(chosenResult.sourceIndex,1);
 assert.strictEqual(chosenResult.trackIndex,2);
 assert.strictEqual(chosen.created(),1);
 assert.strictEqual(chosen.tracks[3],originalUpper);
-assert.deepStrictEqual(spans(chosen.tracks[2]),[['Custom subtitle_1.png',6,7]]);
+assert.deepStrictEqual(spans(chosen.tracks[2]),[['Custom subtitle_1.png',5,7]]);
 assert.strictEqual(chosen.undo(1).ok,true);
 assert.strictEqual(chosen.redo(1).ok,true);
 assert.strictEqual(JSON.parse(chosen.context.psnImportExtras(1)).count,0);
@@ -170,7 +170,7 @@ assert.strictEqual(badLabel.tracks[1].clips.length,0);
 // Full stems and numeric suffix order; _10 follows _2. Originals never change.
 const a=setup([[['Exact full name.png',2,12]],[]],['Exact full name_10.png','Exact full name_2.png','Exact full name_1.png','Other name_1.png']);
 let r=a.run(); assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.count,3);assert.strictEqual(r.unmatched,1);
-assert.deepStrictEqual(spans(a.tracks[1]),[['Exact full name_1.png',9,10],['Exact full name_2.png',10,11],['Exact full name_10.png',11,12]]);
+assert.deepStrictEqual(spans(a.tracks[1]),[['Exact full name_1.png',4.48,7],['Exact full name_2.png',7,9.48],['Exact full name_10.png',9.48,12]]);
 assert.deepStrictEqual(spans(a.tracks[0]),[['Exact full name.png',2,12]]);
 for(const i of a.items.values()){assert.strictEqual(i.getInPoint().seconds,2);assert.strictEqual(i.getOutPoint().seconds,7);}
 assert.strictEqual(a.run().count,0,'repeat import is idempotent'); assert.strictEqual(a.writes(),3);
@@ -181,7 +181,7 @@ assert.strictEqual(a.undo().ok,true);assert.strictEqual(a.tracks[1].clips.length
 // Existing variants anywhere in the sequence are skipped. A standalone _1 is normal.
 const b=setup([[['Topic.png',0,10],['Orphan_1.png',20,25]],[],[['Topic_1.png',1,2]]],['Topic_1.png','Topic_3.png','Orphan_1.png','Orphan_2.png']);
 r=b.run();assert.strictEqual(r.count,1);assert.strictEqual(r.skipped,2);assert.strictEqual(r.unmatched,1);
-assert.deepStrictEqual(spans(b.tracks[1]),[['Topic_3.png',9,10]]);
+assert.deepStrictEqual(spans(b.tracks[1]),[['Topic_3.png',5,10]]);
 
 // Case insensitive matching, exact prefixes, and existing project-bin item reuse.
 const c=setup([[['Case.PNG',0,10]],[]],['CASE_1.PNG','Unrelated Case_2.png']);
@@ -218,9 +218,9 @@ assert.strictEqual(history.undo(1).ok,true);assert.strictEqual(history.undo(0).o
 assert.strictEqual(history.redo(0).ok,true);assert.strictEqual(history.redo(1).ok,true);
 assert.strictEqual(history.tracks[1].clips[0].end.seconds,9.5);
 
-// Non-integer frame rates round one second to whole frames, keeping the original end exact.
+// Equal portions use whole frames at fractional frame rates; the final end stays exact.
 const fractional=setup([[['a.png',0,10.01]],[]],['a_1.png','a_2.png'],{fps:30000/1001});
-r=fractional.run();assert.strictEqual(r.ok,true,r.error);assert(Math.abs(r.duration-1.001)<1e-8);
+r=fractional.run();assert.strictEqual(r.ok,true,r.error);assert(Math.abs((fractional.tracks[1].clips[0].end.seconds-fractional.tracks[1].clips[0].start.seconds)-100*1001/30000)<1e-8);
 assert(Math.abs(fractional.tracks[1].clips[1].end.seconds-10.01)<1e-8);
 // Each original discovers its own folder; identical basenames in different folders stay separate.
 const multi=setup([[['D:/project A/Same.png',0,10],['E:/project B/Same.png',20,30],['D:/project A/Other.png',40,50]],[],[['D:/project A/Same_1.png',60,61]]],
@@ -228,7 +228,7 @@ const multi=setup([[['D:/project A/Same.png',0,10],['E:/project B/Same.png',20,3
 r=multi.run();assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.count,3);assert.strictEqual(r.skipped,1);
 assert.deepStrictEqual(multi.scans,['D:/project A','E:/project B'],'scan each original folder once');
 assert.deepStrictEqual(Array.from(multi.tracks[1].clips,c=>[c.projectItem.getMediaPath(),c.start.seconds,c.end.seconds]),[
-  ['E:/project B/Same_1.png',28,29],['E:/project B/Same_2.png',29,30],['D:/project A/Other_1.png',49,50]
+  ['E:/project B/Same_1.png',23.32,26.68],['E:/project B/Same_2.png',26.68,30],['D:/project A/Other_1.png',45,50]
 ]);
 const offline=setup([[['a.png',0,10]],[]],['a_1.png'],{offline:true});
 assert.strictEqual(offline.run().ok,false);assert.strictEqual(offline.writes(),0);
@@ -238,11 +238,11 @@ console.log('extra subtitle import tests passed');
 // be resized in empty tail space before being moved into a one-second gap.
 const longStill=setup([[['a.png',0,10]],[['safe.png',10,12]]],['a_1.png'],{forbidSourceMarks:true,insertedDuration:1800});
 r=longStill.run();assert.strictEqual(r.ok,true,r.error);
-assert.deepStrictEqual(spans(longStill.tracks[1]),[['a_1.png',9,10],['safe.png',10,12]]);
+assert.deepStrictEqual(spans(longStill.tracks[1]),[['a_1.png',5,10],['safe.png',10,12]]);
 assert.strictEqual(longStill.undo().ok,true);assert.deepStrictEqual(spans(longStill.tracks[1]),[['safe.png',10,12]]);
 assert.strictEqual(longStill.redo().ok,true);
 const shortStill=setup([[['a.png',0,10]],[]],['a_1.png'],{forbidSourceMarks:true,insertedDuration:0.2});
-assert.strictEqual(shortStill.run().ok,true);assert.deepStrictEqual(spans(shortStill.tracks[1]),[['a_1.png',9,10]]);
+assert.strictEqual(shortStill.run().ok,true);assert.deepStrictEqual(spans(shortStill.tracks[1]),[['a_1.png',5,10]]);
 const refusedMove=setup([[['a.png',0,10]],[['safe.png',10,12]]],['a_1.png'],{failMove:true});
 r=refusedMove.run();assert.strictEqual(r.ok,false);
 assert.deepStrictEqual(spans(refusedMove.tracks[1]),[['safe.png',10,12]],'failed staging/move is removed without touching neighbors');
@@ -253,7 +253,7 @@ for(const throwOnExtend of [false,true]) {
   const limited=setup([[['a.png',0,10]],[]],['a_1.png','a_2.png'],{insertedDuration:0.2,durationLimit:0.2,throwOnExtend});
   r=limited.run();assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.shortened,2);
   const rows=spans(limited.tracks[1]);
-  assert(Math.abs(rows[0][1]-8.8)<1e-6);assert.strictEqual(rows[0][2],9);
+  assert(Math.abs(rows[0][1]-6.48)<1e-6);assert.strictEqual(rows[0][2],6.68);
   assert(Math.abs(rows[1][1]-9.8)<1e-6);assert.strictEqual(rows[1][2],10);
   assert.strictEqual(limited.undo().ok,true);assert.strictEqual(limited.tracks[1].clips.length,0);
   assert.strictEqual(limited.redo().ok,true);assert.deepStrictEqual(spans(limited.tracks[1]),rows);
@@ -261,22 +261,22 @@ for(const throwOnExtend of [false,true]) {
 const zero=setup([[['a.png',0,10]],[]],['a_1.png'],{insertedDuration:0.2,durationLimit:0});
 assert.strictEqual(zero.run().ok,false);assert.strictEqual(zero.tracks[1].clips.length,0);
 const tooLong=setup([[['a.png',0,10]],[]],['a_1.png'],{insertedDuration:5,durationLimit:5,throwOnExtend:false});
-assert.strictEqual(tooLong.run().ok,true);assert.deepStrictEqual(spans(tooLong.tracks[1]),[['a_1.png',9,10]]);
+assert.strictEqual(tooLong.run().ok,true);assert.deepStrictEqual(spans(tooLong.tracks[1]),[['a_1.png',5,10]]);
 console.log('short available-duration fallback tests passed');
 
 // Short originals get extras AFTER their end, even across later original clips
 // on the lower track. Exactly two seconds retains the normal end alignment.
 const shortOriginal=setup([[['brief.png',4,5],['next.png',5,9]],[]],['brief_1.png','brief_2.png']);
 r=shortOriginal.run();assert.strictEqual(r.ok,true,r.error);
-assert.deepStrictEqual(spans(shortOriginal.tracks[1]),[['brief_1.png',5,6],['brief_2.png',6,7]]);
+assert.deepStrictEqual(spans(shortOriginal.tracks[1]),[['brief_1.png',4.32,4.68],['brief_2.png',4.68,5]]);
 assert.deepStrictEqual(spans(shortOriginal.tracks[0]),[['brief.png',4,5],['next.png',5,9]]);
 assert.strictEqual(shortOriginal.undo().ok,true);assert.strictEqual(shortOriginal.redo().ok,true);
 const twoSeconds=setup([[['a.png',4,6]],[]],['a_1.png']);
 assert.strictEqual(twoSeconds.run().ok,true);assert.deepStrictEqual(spans(twoSeconds.tracks[1]),[['a_1.png',5,6]]);
 const briefLimited=setup([[['a.png',4,5]],[]],['a_1.png'],{insertedDuration:0.2,durationLimit:0.2,throwOnExtend:true});
 r=briefLimited.run();assert.strictEqual(r.ok,true,r.error);
-assert.strictEqual(briefLimited.tracks[1].clips[0].start.seconds,5);
-assert(Math.abs(briefLimited.tracks[1].clips[0].end.seconds-5.2)<1e-6);
+assert(Math.abs(briefLimited.tracks[1].clips[0].start.seconds-4.8)<1e-6);
+assert(Math.abs(briefLimited.tracks[1].clips[0].end.seconds-5)<1e-6);
 assert.strictEqual(briefLimited.undo().ok,true);assert.strictEqual(briefLimited.redo().ok,true);
 console.log('short original alignment tests passed');
 
@@ -341,18 +341,57 @@ let reusePreview=JSON.parse(reused.context.psnPrepareExtras(0));
 assert.strictEqual(reusePreview.repeatedGroups,1);assert.strictEqual(reusePreview.count,2);assert.strictEqual(reused.writes(),0);
 let reuseImport=JSON.parse(reused.context.psnImportDetectedExtras());
 assert.strictEqual(reuseImport.ok,true,reuseImport.error);
-assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',28,29],['a_2.png',29,30]]);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
 assert.deepStrictEqual(spans(reused.tracks[0]),reuseBefore);
 assert.strictEqual(reused.run().count,0,'repeated import does not duplicate extras');
 assert.strictEqual(reused.undo().ok,true);assert.strictEqual(reused.redo().ok,true);
-assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',28,29],['a_2.png',29,30]]);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
 // Short touching pieces form a long parent; extras end with its combined tail.
 const splitParent=setup([[['a.png',2,3],['a.png',3,4],['a.png',4,5]],[]],['a_1.png']);
 assert.strictEqual(splitParent.run().ok,true);
-assert.deepStrictEqual(spans(splitParent.tracks[1]),[['a_1.png',4,5]]);
+assert.deepStrictEqual(spans(splitParent.tracks[1]),[['a_1.png',3.48,5]]);
 assert.strictEqual(splitParent.tracks[1].clips[0].label,9);
-// A separate short final occurrence retains the existing after-parent rule.
+// A separate short final occurrence uses half its duration, end-aligned.
 const shortRepeat=setup([[['a.png',0,10],['a.png',20,21]],[]],['a_1.png']);
 assert.strictEqual(shortRepeat.run().ok,true);
-assert.deepStrictEqual(spans(shortRepeat.tracks[1]),[['a_1.png',21,22]]);
+assert.deepStrictEqual(spans(shortRepeat.tracks[1]),[['a_1.png',20.48,21]]);
 assert.strictEqual(shortRepeat.tracks[1].clips[0].label,6);
+
+// Premiere source and timeline ranges are independent. A still must be trimmed
+// at BOTH layers before moving it from staging; otherwise its original 5s
+// source range can be re-used when Premiere rebuilds the clip during a move.
+const sourceExtent=setup([[['duration.png',0,10]],[]],['duration_1.png','duration_2.png'],{moveUsesSourceDuration:true});
+const extentResult=sourceExtent.run();
+assert.strictEqual(extentResult.ok,true,extentResult.error);
+assert.deepStrictEqual(spans(sourceExtent.tracks[1]),[['duration_1.png',3.32,6.68],['duration_2.png',6.68,10]]);
+for (const c of sourceExtent.tracks[1].clips) {
+  assert(Math.abs(c.outPoint.seconds-c.inPoint.seconds-(c.end.seconds-c.start.seconds))<1e-6);
+}
+assert.strictEqual(sourceExtent.undo().ok,true);
+assert.strictEqual(sourceExtent.redo().ok,true);
+assert.deepStrictEqual(spans(sourceExtent.tracks[1]),[['duration_1.png',3.32,6.68],['duration_2.png',6.68,10]]);
+console.log('extra source/timeline duration consistency passed');
+
+// Adjacent short parents no longer create overlapping after-parent groups.
+const adjacent=setup([[['a.png',0,1],['b.png',1,2]],[]],['a_1.png','b_1.png']);
+assert.strictEqual(adjacent.run().ok,true);
+assert.deepStrictEqual(spans(adjacent.tracks[1]),[['a_1.png',0.48,1],['b_1.png',1.48,2]]);
+assert(adjacent.tracks[1].clips.every(c=>c.label===6));
+// Threshold: 24 frames is red; exactly 25 frames is green at 25fps.
+for(const [end,label] of [[1.92,6],[2,9],[2.08,9]]) {
+ const sample=setup([[['a.png',0,end]],[]],['a_1.png']);
+ const preview=JSON.parse(sample.context.psnPrepareExtras(0));
+ assert.strictEqual(preview.green,label===9?1:0);
+ assert.strictEqual(sample.run().ok,true);
+ assert.strictEqual(sample.tracks[1].clips[0].label,label);
+ assert.strictEqual(+sample.tracks[1].clips[0].end.seconds.toFixed(6),end);
+}
+const thirds=setup([[['a.png',0,6]],[]],['a_1.png','a_2.png']);
+assert.strictEqual(thirds.run().ok,true);
+assert.deepStrictEqual(spans(thirds.tracks[1]),[['a_1.png',2,4],['a_2.png',4,6]]);
+const limitedColor=setup([[['a.png',0,6]],[]],['a_1.png'],{durationLimit:0.2,insertedDuration:0.2});
+assert.strictEqual(limitedColor.run().ok,true);
+assert.strictEqual(limitedColor.tracks[1].clips[0].label,6);
+assert.strictEqual(limitedColor.undo().ok,true);
+assert.strictEqual(limitedColor.redo().ok,true);
+assert.strictEqual(limitedColor.tracks[1].clips[0].label,6);
