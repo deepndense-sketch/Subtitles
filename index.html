@@ -66,12 +66,6 @@
       <button id="importAll" class="primary">Import All PNGs at Playhead</button>
       <p class="muted small">Places every PNG in filename order as consecutive one-second clips. The destination range must be empty. Import uses Premiere’s separate history.</p>
       </details>
-    </section>
-    <section class="card">
-      <h2>Status</h2>
-      <div id="status" class="status">Ready. v2.0.0 — choose a subtitle track to import extras.</div>
-      <div id="currentFile" class="current">No operation yet.</div>
-    </section>
     <details id="manualControls" class="card manual-controls">
       <summary>Controls &amp; shortcut help</summary>
       <div class="controls-content">
@@ -90,6 +84,13 @@
       <p class="muted small">Use this panel's Undo for tool edits. Premiere's Edit → Undo uses a separate history and may undo an older edit. History lasts until the panel or project is reloaded. Check / Repair Overlaps previews trimming long PNG tails to the next clip. Undo restores the original timing, including its overlaps.</p>
       </div>
     </details>
+    </section>
+    <section class="card">
+      <h2>Status</h2>
+      <div id="status" class="status">Ready. v2.0.1 — choose a subtitle track to import extras.</div>
+      <div id="currentFile" class="current">No operation yet.</div>
+    </section>
+
   </main>
   <dialog id="extraConfirm" class="extra-confirm" aria-labelledby="extraConfirmTitle" aria-describedby="extraConfirmPlan">
     <h2 id="extraConfirmTitle">Subtitle track detected</h2>

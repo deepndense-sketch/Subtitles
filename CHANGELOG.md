@@ -1,3 +1,7 @@
+## 2.0.1
+
+- Move Controls & shortcut help under the Adjust/Add Sub controls, visible only in that tab.
+
 ## 2.0.0
 
 - Show distinct repeated subtitles and their additional timeline locations separately, so one subtitle repeated twice reports two additional locations.
