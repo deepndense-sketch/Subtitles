@@ -1,3 +1,7 @@
+## 2.0.2
+
+- Keep the PowerShell update result visible until the user presses any key, replacing the 10-second auto-close timer. Installation finishes before waiting for the key.
+
 ## 2.0.1
 
 - Move Controls & shortcut help under the Adjust/Add Sub controls, visible only in that tab.

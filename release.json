@@ -1,11 +1,11 @@
 {
-  "version": "2.0.1",
+  "version": "2.0.2",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1544,
-      "sha256": "6e0929e7ad6e7971fabf47d67fa0fe36cb9f7ee25758f6a313faff29129e57cd"
+      "sha256": "ceadb6dffbbf9d8c4544bec2d5b914629dad41d7481b3b4a2823251e259dc555"
     },
     {
       "path": "css/style.css",
@@ -15,7 +15,7 @@
     {
       "path": "index.html",
       "size": 8371,
-      "sha256": "38aa143b9d91fd2cf976ef96b40a25d71b1b1f103493a2de92e16d8c60c40992"
+      "sha256": "c915f094954f1013f43c740c2c19619b2e01d4c5a38e87422de59834033ba5b3"
     },
     {
       "path": "js/main.js",
@@ -44,8 +44,8 @@
     },
     {
       "path": "lib/cep-updater.js",
-      "size": 10055,
-      "sha256": "d59cc8380c96473e849e8415618d9c9d4a7f4bd93e0550fa4600c3c5e4a425cf"
+      "size": 10027,
+      "sha256": "43b3c8c493885dc9587b3cfd5dc95efc4995424b031895c3a60003ed0f194861"
     },
     {
       "path": "native/KeyListener.exe",
@@ -60,7 +60,7 @@
     {
       "path": "package.json",
       "size": 529,
-      "sha256": "b3d920dfced2832e7e5fb7231ab44f348d49109c32a0f8106eb1b1fe3d2a5312"
+      "sha256": "fe778c1cee6718404cfe1f488cc1136063c39cbc782698b164c3aa1fadc17c1d"
     }
   ]
 }
