@@ -208,7 +208,7 @@ for(const i of fail.items.values()){assert.strictEqual(i.getInPoint().seconds,2)
 const guard=setup([[['a.png',0,10]],[],[]],['a_1.png']);assert.strictEqual(guard.run().ok,true);
 guard.tracks[1].clips[0].end.seconds=11;assert.strictEqual(guard.undo().ok,false);
 guard.tracks[1].clips[0].end.seconds=10;assert.strictEqual(guard.undo().ok,true);
-guard.tracks[2].overwriteClip(guard.items.get('a_1.png'),20);assert.strictEqual(guard.redo().ok,false);
+guard.tracks[2].overwriteClip(guard.items.get('a_1.png'),5);assert.strictEqual(guard.redo().ok,false);
 
 // A recreated import remaps later timing history to new TrackItem identities.
 const history=setup([[['a.png',0,10]],[]],['a_1.png']);assert.strictEqual(history.run().ok,true);
@@ -225,10 +225,10 @@ assert(Math.abs(fractional.tracks[1].clips[1].end.seconds-10.01)<1e-8);
 // Each original discovers its own folder; identical basenames in different folders stay separate.
 const multi=setup([[['D:/project A/Same.png',0,10],['E:/project B/Same.png',20,30],['D:/project A/Other.png',40,50]],[],[['D:/project A/Same_1.png',60,61]]],
   ['D:/project A/Same_1.png','E:/project B/Same_1.png','E:/project B/Same_2.png','D:/project A/Other_1.png','F:/unrelated/Other_2.png']);
-r=multi.run();assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.count,3);assert.strictEqual(r.skipped,1);
+r=multi.run();assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.count,4);assert.strictEqual(r.skipped,0);
 assert.deepStrictEqual(multi.scans,['D:/project A','E:/project B'],'scan each original folder once');
 assert.deepStrictEqual(Array.from(multi.tracks[1].clips,c=>[c.projectItem.getMediaPath(),c.start.seconds,c.end.seconds]),[
-  ['E:/project B/Same_1.png',23.32,26.68],['E:/project B/Same_2.png',26.68,30],['D:/project A/Other_1.png',45,50]
+  ['D:/project A/Same_1.png',5,10],['E:/project B/Same_1.png',23.32,26.68],['E:/project B/Same_2.png',26.68,30],['D:/project A/Other_1.png',45,50]
 ]);
 const offline=setup([[['a.png',0,10]],[]],['a_1.png'],{offline:true});
 assert.strictEqual(offline.run().ok,false);assert.strictEqual(offline.writes(),0);
@@ -338,24 +338,24 @@ assert.strictEqual(changedPreview.created(),0);
 const reused=setup([[['a.png',20,30],['a.png',0,10]],[]],['a_1.png','a_2.png']);
 const reuseBefore=spans(reused.tracks[0]);
 let reusePreview=JSON.parse(reused.context.psnPrepareExtras(0));
-assert.strictEqual(reusePreview.repeatedGroups,1);assert.strictEqual(reusePreview.count,2);assert.strictEqual(reused.writes(),0);
+assert.strictEqual(reusePreview.repeatedGroups,1);assert.strictEqual(reusePreview.count,4);assert.strictEqual(reused.writes(),0);
 let reuseImport=JSON.parse(reused.context.psnImportDetectedExtras());
 assert.strictEqual(reuseImport.ok,true,reuseImport.error);
-assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',3.32,6.68],['a_2.png',6.68,10],['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
 assert.deepStrictEqual(spans(reused.tracks[0]),[['a.png',0,10],['a.png',20,30]]);
 assert.strictEqual(reused.run().count,0,'repeated import does not duplicate extras');
 assert.strictEqual(reused.undo().ok,true);assert.strictEqual(reused.redo().ok,true);
-assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
+assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',3.32,6.68],['a_2.png',6.68,10],['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
 // Short touching pieces form a long parent; extras end with its combined tail.
 const splitParent=setup([[['a.png',2,3],['a.png',3,4],['a.png',4,5]],[]],['a_1.png']);
 assert.strictEqual(splitParent.run().ok,true);
-assert.deepStrictEqual(spans(splitParent.tracks[1]),[['a_1.png',4.48,5]]);
-assert.strictEqual(splitParent.tracks[1].clips[0].label,6);
+assert.deepStrictEqual(spans(splitParent.tracks[1]),[['a_1.png',3.48,5]]);
+assert.strictEqual(splitParent.tracks[1].clips[0].label,9);
 // A separate short final occurrence uses half its duration, end-aligned.
 const shortRepeat=setup([[['a.png',0,10],['a.png',20,21]],[]],['a_1.png']);
 assert.strictEqual(shortRepeat.run().ok,true);
-assert.deepStrictEqual(spans(shortRepeat.tracks[1]),[['a_1.png',20.48,21]]);
-assert.strictEqual(shortRepeat.tracks[1].clips[0].label,6);
+assert.deepStrictEqual(spans(shortRepeat.tracks[1]),[['a_1.png',5,10],['a_1.png',20.48,21]]);
+assert.strictEqual(shortRepeat.tracks[1].clips[1].label,6);
 
 // Premiere source and timeline ranges are independent. A still must be trimmed
 // at BOTH layers before moving it from staging; otherwise its original 5s
@@ -468,3 +468,36 @@ assert.deepStrictEqual(spans(untouched.tracks[1]),[['base_1.png',4,8]]);
 const occupiedParent=setup([[['base.png',0,4]],[['base_1.png',4,8]]],['base_2.png']);
 assert.strictEqual(occupiedParent.run().ok,false,'existing destination clip must not be trimmed to make space');
 assert.strictEqual(occupiedParent.writes(),0);
+
+// Touching cuts share one span; an intervening subtitle starts another occurrence.
+const occurrences=setup([[['main.png',0,2],['main.png',2,6],['other.png',6,10],['main.png',10,13],['main.png',13,16]],[]],['main_2.png','main_1.png']);
+const originalSpans=spans(occurrences.tracks[0]);
+assert.strictEqual(occurrences.run().count,4);
+assert.deepStrictEqual(spans(occurrences.tracks[1]),[['main_1.png',2,4],['main_2.png',4,6],['main_1.png',12,14],['main_2.png',14,16]]);
+assert.deepStrictEqual(spans(occurrences.tracks[0]),originalSpans);
+assert.strictEqual(occurrences.run().count,0);
+assert.strictEqual(occurrences.undo().ok,true);
+assert.strictEqual(occurrences.redo().ok,true);
+assert.deepStrictEqual(spans(occurrences.tracks[0]),originalSpans);
+// An existing extra belongs only to its location. A later location imports the
+// full group while the first location uses its existing _1 as timing reference.
+const localExtras=setup([[['main.png',0,8],['other.png',8,10],['main.png',10,18]],[],[['main_1.png',4,8]]],['main_1.png','main_2.png']);
+assert.strictEqual(localExtras.run().count,3);
+assert.deepStrictEqual(spans(localExtras.tracks[1]),[['main_2.png',6,8],['main_1.png',12.68,15.32],['main_2.png',15.32,18]]);
+assert.strictEqual(localExtras.run().count,0);
+assert.strictEqual(localExtras.undo().ok,true);
+assert.strictEqual(localExtras.redo().ok,true,'same media at another occurrence must not block redo');
+// A cut existing extra is also merged before calculating the next extra slot.
+const cutExtra=setup([[['main.png',0,8]],[],[['main_1.png',4,6],['main_1.png',6,8]]],['main_1.png','main_2.png']);
+assert.strictEqual(cutExtra.run().count,1);
+assert.deepStrictEqual(spans(cutExtra.tracks[1]),[['main_2.png',6,8]]);
+// A positive gap separates occurrences even without another subtitle.
+const gap=setup([[['main.png',0,4],['main.png',5,9]],[]],['main_1.png']);
+assert.strictEqual(gap.run().count,2);
+assert.deepStrictEqual(spans(gap.tracks[1]),[['main_1.png',2,4],['main_1.png',7,9]]);
+// Failure at a later occurrence removes this batch, without cutting the originals.
+const failedOccurrences=setup([[['main.png',0,4],['main.png',6,10]],[]],['main_1.png'],{failAt:2});
+assert.strictEqual(failedOccurrences.run().ok,false);
+assert.deepStrictEqual(spans(failedOccurrences.tracks[0]),[['main.png',0,4],['main.png',6,10]]);
+assert.strictEqual(failedOccurrences.tracks[1].clips.length,0);
+console.log('continuous and separate occurrence regression tests passed');

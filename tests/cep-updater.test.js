@@ -14,7 +14,9 @@ async function fetchFile(url) {
 (async()=>{
   const EventEmitter=require('events');
   const readyJob=path.join(temp,'launch-ready');fs.mkdirSync(readyJob);
-  await updater.launch(readyJob,()=>{
+  await updater.launch(readyJob,(exe,args)=>{
+    assert(args[args.length-1].includes("-WindowStyle Normal"));
+    assert(!args[args.length-1].includes("RedirectStandardOutput"),"progress must remain visible in the console");
     const worker=new EventEmitter();worker.unref=()=>{};
     process.nextTick(()=>fs.writeFileSync(path.join(readyJob,'status.json'),JSON.stringify({state:'waiting'})));
     return worker; // No 'spawn' event: success requires the helper's acknowledgement.
@@ -69,7 +71,8 @@ async function fetchFile(url) {
         const current=path.join(target,file.path);fs.mkdirSync(path.dirname(current),{recursive:true});fs.writeFileSync(current,'old '+file.path);
       }
       fs.writeFileSync(path.join(job,'plan.json'),JSON.stringify({version:manifest.version,target,files}));
-      fs.copyFileSync(path.join(root,'native/install-update.ps1'),path.join(job,'install-update.ps1'));
+      // Test workers must not contend with a real pending CEP update.
+      fs.writeFileSync(path.join(job,'install-update.ps1'),fs.readFileSync(path.join(root,'native/install-update.ps1'),'utf8').replace('SubtitleCEPUpdate','SubtitleCEPUpdateTest-'+process.pid+'-'+(fail?'rollback':'success')));
       const wrapper="function Get-Process {}\n"+(fail ? "function Copy-Item { param($LiteralPath,$Destination,[switch]$Force) if($LiteralPath -like '*payload*' -and $Destination -like '*js\\main.js') {throw 'Simulated copy failure'} Microsoft.PowerShell.Management\\Copy-Item @PSBoundParameters }\n" : '')+"& (Join-Path $PSScriptRoot 'install-update.ps1')\n";
       fs.writeFileSync(path.join(job,'test-worker.ps1'),wrapper);
       const launched=updater.launch(job,(exe,args,options)=>child.spawn(exe,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(job,'test-worker.ps1')],Object.assign({},options,{env:Object.assign({},options.env,{APPDATA:appdata,LOCALAPPDATA:local})})),15000);

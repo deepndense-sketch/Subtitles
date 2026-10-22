@@ -455,11 +455,22 @@ function psnSequencePngNames(sequence) {
     }
     return seen;
 }
-// Repeated media uses its final timeline instance; use only that clip as the timing reference.
-function psnLastExtraAnchor(rows) {
-    var ordered=rows.slice(0);
+// Merge only touching pieces on the same track into a single occurrence.
+function psnExtraOccurrences(rows) {
+    var ordered=rows.slice(0), result=[];
     ordered.sort(function(a,b){return a.start-b.start || a.end-b.end;});
-    return ordered[ordered.length-1];
+    for(var i=0;i<ordered.length;i++) {
+        var row=ordered[i], last=result.length ? result[result.length-1] : null;
+        if(last && last.trackId===row.trackId && psnNormalizePath(last.path)===psnNormalizePath(row.path) && Math.abs(row.start-last.end)<=psnEpsilon) {
+            last.end=row.end; last.id+="|"+row.id;
+        } else result.push({id:row.id,trackId:row.trackId,name:row.name,path:row.path,start:row.start,end:row.end});
+    }
+    return result;
+}
+function psnExtraRowsInRange(existing,variant,start,end) {
+    var rows=(existing["$"+psnNormalizePath(variant.path)] || []).concat(existing["@"+variant.name] || []), result=[];
+    for(var i=0;i<rows.length;i++) if(rows[i].start<end-psnEpsilon && rows[i].end>start+psnEpsilon) result.push(rows[i]);
+    return result;
 }
 function psnExtraRows(sequence) {
     var map={};
@@ -467,8 +478,8 @@ function psnExtraRows(sequence) {
         var track=sequence.videoTracks[t], clips=track.clips;
         for(var c=0;c<clips.numItems;c++) {
             var clip=clips[c], path=psnProjectItemPath(clip.projectItem);
-            if(!psnClipPngName(clip) || !path) continue;
-            var key="$"+psnNormalizePath(path);
+            if(!psnClipPngName(clip)) continue;
+            var key=path ? "$"+psnNormalizePath(path) : "@"+psnClipPngName(clip);
             if(!map[key]) map[key]=[];
             map[key].push({id:String(clip.nodeId),trackId:String(track.id),name:psnClipPngName(clip),path:path,start:psnSeconds(clip.start),end:psnSeconds(clip.end)});
         }
@@ -477,10 +488,12 @@ function psnExtraRows(sequence) {
 }
 function psnPlanExtras(paths, originals, seen, occupied, frame, existing) {
     var anchors={}, groups={}, names={}, plan=[], trims=[], skipped=0, unmatched=0, groupCount=0, repeatedGroups=0, i,key;
-    for(i=0;i<originals.length;i++) {
-        key="$"+psnNormalizePath(originals[i].path);
+    existing=existing || {};
+    var occurrences=psnExtraOccurrences(originals);
+    for(i=0;i<occurrences.length;i++) {
+        key="$"+psnNormalizePath(occurrences[i].path);
         if(!anchors[key]) anchors[key]=[];
-        anchors[key].push(originals[i]);
+        anchors[key].push(occurrences[i]);
     }
     for(i=0;i<paths.length;i++) {
         var name=psnPngName(paths[i]), match=name.match(/^(.*)_([1-9][0-9]*)\.png$/);
@@ -488,49 +501,69 @@ function psnPlanExtras(paths, originals, seen, occupied, frame, existing) {
         var normalized=psnNormalizePath(paths[i]);
         if(names["$"+normalized]) continue;
         names["$"+normalized]=true;
-        var alreadyImported=!!(seen["$"+normalized] || seen["@"+name]);
-        if(alreadyImported) skipped++;
         key="$"+normalized.substring(0,normalized.lastIndexOf("/")+1)+match[1]+".png";
-        if(!anchors[key]) { if(!alreadyImported) unmatched++; continue; }
+        if(!anchors[key]) { if(seen["$"+normalized] || seen["@"+name]) skipped++; else unmatched++; continue; }
         if(!groups[key]) groups[key]=[];
-        groups[key].push({path:paths[i],name:name,variant:Number(match[2]),alreadyImported:alreadyImported});
+        groups[key].push({path:paths[i],name:name,variant:Number(match[2]),onDisk:true});
     }
-    // Existing timeline extras still anchor later imports even if their file is
-    // absent from the current folder listing.
-    if(existing) for(var mediaKey in existing) if(existing.hasOwnProperty(mediaKey)) {
-        var rows=existing[mediaKey], row=rows[0], match=psnPngName(row.path).match(/^(.*)_([1-9][0-9]*)\.png$/);
+    // Keep timeline-only extras available as references for incremental imports.
+    for(var mediaKey in existing) if(existing.hasOwnProperty(mediaKey)) {
+        var row=existing[mediaKey][0], match=psnPngName(row.path).match(/^(.*)_([1-9][0-9]*)\.png$/);
         if(!match) continue;
         var media=psnNormalizePath(row.path), base="$"+media.substring(0,media.lastIndexOf("/")+1)+match[1]+".png";
         if(!groups[base] || names["$"+media]) continue;
-        groups[base].push({path:row.path,name:psnPngName(row.path),variant:Number(match[2]),alreadyImported:true});
+        groups[base].push({path:row.path,name:psnPngName(row.path),variant:Number(match[2]),onDisk:false});
     }
     for(key in groups) if(groups.hasOwnProperty(key)) {
-        var variants=groups[key], missing=[], lastExisting=null;
+        var variants=groups[key], locations=anchors[key];
         variants.sort(function(a,b){return a.variant-b.variant || (a.name<b.name ? -1 : 1);});
-        for(i=0;i<variants.length;i++) {
-            if(variants[i].alreadyImported) lastExisting=variants[i];
-            else missing.push(variants[i]);
+        if(locations.length>1) repeatedGroups++;
+        for(var location=0;location<locations.length;location++) {
+            var original=locations[location], rangeEnd=original.end, limit=Infinity;
+            // The next unrelated source subtitle separates this occurrence.
+            for(var o=0;o<occurrences.length;o++) {
+                var next=occurrences[o], nextPath=psnNormalizePath(next.path);
+                var nextBase=nextPath.replace(/_[1-9][0-9]*\.png$/i,".png");
+                if(next.start>=original.end-psnEpsilon && next.id!==original.id &&
+                   (nextPath===psnNormalizePath(original.path) || nextBase!==psnNormalizePath(original.path))) limit=Math.min(limit,next.start);
+            }
+            // Extras moved down by the editor may touch a shortened main's end.
+            // Follow that contiguous chain, without jumping a gap or separator.
+            var changed=true;
+            while(changed) {
+                changed=false;
+                for(i=0;i<variants.length;i++) {
+                    var all=(existing["$"+psnNormalizePath(variants[i].path)] || []).concat(existing["@"+variants[i].name] || []);
+                    for(var r=0;r<all.length;r++) if(all[r].end>original.start+psnEpsilon && all[r].start<=rangeEnd+psnEpsilon && all[r].start<limit-psnEpsilon && all[r].end>rangeEnd+psnEpsilon) {
+                        var expanded=Math.min(all[r].end,limit);
+                        if(expanded>rangeEnd+psnEpsilon) {rangeEnd=expanded; changed=true;}
+                    }
+                }
+            }
+            var missing=[], lastRows=null, lastVariant=0;
+            for(i=0;i<variants.length;i++) {
+                var rows=psnExtraRowsInRange(existing,variants[i],original.start,rangeEnd);
+                if(rows.length) { skipped++; lastRows=rows; lastVariant=variants[i].variant; }
+                else if(variants[i].onDisk) missing.push(variants[i]);
+            }
+            if(!missing.length) continue;
+            var anchor=original;
+            if(lastRows) {
+                if(missing[0].variant<lastVariant) throw Error("An earlier extra is missing before an existing later extra. Check their numeric order before importing.");
+                var runs=psnExtraOccurrences(lastRows);
+                anchor=runs[runs.length-1];
+            }
+            if(!isFinite(frame) || frame<=0 || anchor.start<0 || anchor.end<=anchor.start) throw Error("Invalid subtitle timing.");
+            var frames=Math.round((anchor.end-anchor.start)/frame), portions=missing.length+1;
+            if(frames<portions) throw Error("Not enough frames to give each subtitle a frame: "+anchor.name);
+            trims.push({id:anchor.id,trackId:anchor.trackId,start:anchor.start,end:anchor.end});
+            for(i=0;i<missing.length;i++) {
+                var start=anchor.end-Math.round((missing.length-i)*frames/portions)*frame;
+                var end=anchor.end-Math.round((missing.length-i-1)*frames/portions)*frame;
+                plan.push({path:missing[i].path,name:missing[i].name,start:start,end:end,parentStart:anchor.start,parentEnd:anchor.end,occurrenceStart:original.start,occurrenceEnd:rangeEnd,align:"end"});
+            }
+            groupCount++;
         }
-        if(!missing.length) continue;
-        var anchor=psnLastExtraAnchor(anchors[key]);
-        if(lastExisting) {
-            // Do not put an earlier missing suffix after a later existing one.
-            if(missing[0].variant<lastExisting.variant) throw Error("An earlier extra is missing before an existing later extra. Check their numeric order before importing.");
-            var rows=existing && existing["$"+psnNormalizePath(lastExisting.path)];
-            if(!rows || !rows.length) throw Error("Cannot locate the existing extra for timing. Relink its media first.");
-            anchor=psnLastExtraAnchor(rows);
-        } else if(anchors[key].length>1) repeatedGroups++;
-        if(!isFinite(frame) || frame<=0 || anchor.start<0 || anchor.end<=anchor.start) throw Error("Invalid subtitle timing.");
-        var frames=Math.round((anchor.end-anchor.start)/frame), portions=missing.length+1;
-        if(frames<portions) throw Error("Not enough frames to give each subtitle a frame: "+anchor.name);
-        var firstStart=anchor.end-Math.round(missing.length*frames/portions)*frame;
-        trims.push({id:anchor.id,trackId:anchor.trackId,start:anchor.start,end:anchor.end,newEnd:firstStart});
-        for(i=0;i<missing.length;i++) {
-            var start=anchor.end-Math.round((missing.length-i)*frames/portions)*frame;
-            var end=anchor.end-Math.round((missing.length-i-1)*frames/portions)*frame;
-            plan.push({path:missing[i].path,name:missing[i].name,start:start,end:end,parentStart:anchor.start,parentEnd:anchor.end,align:"end"});
-        }
-        groupCount++;
     }
     plan.sort(function(a,b){return a.start-b.start;});
     for(i=0;i<plan.length;i++) {
@@ -577,10 +610,11 @@ function psnExtraColorLabel(green) {
 }
 function psnPlaceExtras(track,plan,before) {
     var map={}; psnCollectProjectItems(app.project.rootItem,map);
-    var missing=[], i;
+    var missing=[], queued={}, i;
     for(i=0;i<plan.length;i++) {
         if(!(new File(plan[i].path)).exists) throw Error("PNG is missing: "+plan[i].path);
-        if(!map[psnNormalizePath(plan[i].path)]) missing.push(plan[i].path);
+        var pathKey=psnNormalizePath(plan[i].path);
+        if(!map[pathKey] && !queued[pathKey]) { missing.push(plan[i].path); queued[pathKey]=true; }
     }
     if(missing.length) {
         if(!app.project.importFiles(missing,true,psnGetOrCreateImportBin(),false)) throw Error("Premiere could not import the extra PNG files.");
@@ -748,8 +782,11 @@ function psnExtraHistory(last,trackIndex,redo) {
     var current=psnSnapshot(track); psnCheckTrack(track,current);
     if(!psnEqual(current,redo ? last.before : last.after)) throw Error("The extra subtitle track changed outside this operation. Undo/redo stopped without changing clips.");
     if(redo) {
-        var seen=psnSequencePngNames(seq);
-        for(var i=0;i<last.plan.length;i++) if(seen["$"+psnNormalizePath(last.plan[i].path)] || seen["@"+last.plan[i].name]) throw Error("An extra subtitle is already in the sequence. Redo stopped to avoid duplicates.");
+        var existing=psnExtraRows(seq);
+        for(var i=0;i<last.plan.length;i++) {
+            var p=last.plan[i];
+            if(psnExtraRowsInRange(existing,p,p.occurrenceStart,p.occurrenceEnd).length) throw Error("An extra subtitle already exists at this occurrence. Redo stopped to avoid duplicates.");
+        }
         var newIds=psnPlaceExtras(track,last.plan,last.before), idMap={};
         for(i=0;i<last.ids.length;i++) idMap["$"+last.ids[i]]=newIds[i];
         // Later redone timing edits must refer to the recreated clips' new IDs.

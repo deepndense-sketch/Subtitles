@@ -1,11 +1,11 @@
 {
-  "version": "1.9.11",
+  "version": "1.9.12",
   "repository": "https://github.com/deepndense-sketch/Subtitles",
   "files": [
     {
       "path": "CSXS/manifest.xml",
       "size": 1546,
-      "sha256": "16cec57f517b02b614812f85a4a6d752082d3dd172d408e31d2358a42093369d"
+      "sha256": "c2a2137fbb89f565d706b40687f0d5dbdcfe73dc7dc8085b76b43afb6cd8e21f"
     },
     {
       "path": "css/style.css",
@@ -15,12 +15,12 @@
     {
       "path": "index.html",
       "size": 8371,
-      "sha256": "7b20c12f18f0dea01e093f917ea7f93c5daee3b277c4609394536772a4a84ca2"
+      "sha256": "4cdf551da5a2275f7aa4f3e6b2e99a79d78ac39569676f164fcf9ad381de61d8"
     },
     {
       "path": "js/main.js",
-      "size": 29524,
-      "sha256": "089743471ee336e30d274bfa6f483b22d25a11c2d00a958b3a9185a2b8d4f23e"
+      "size": 29557,
+      "sha256": "251f2f0f13a18bff1c25d0abc31836efeeab34f6530eada0207c98aae09c8e2f"
     },
     {
       "path": "js/updates.js",
@@ -29,8 +29,8 @@
     },
     {
       "path": "jsx/subtitle_navigator.jsx",
-      "size": 56520,
-      "sha256": "b4588f9955772d912986fb3124808c68b7d0f70ffaaf40613fdf091e933940e4"
+      "size": 58818,
+      "sha256": "f3e2c282506920032e0ac3e39904e44b1e09eac353ca8f13c8fdde818cc847c1"
     },
     {
       "path": "lib/subtitle-index.js",
@@ -44,8 +44,8 @@
     },
     {
       "path": "lib/cep-updater.js",
-      "size": 9853,
-      "sha256": "2813af462c98c6cccdc008eef8510b7af8d2e013e72a1fba404cd754efb48b4d"
+      "size": 10055,
+      "sha256": "d59cc8380c96473e849e8415618d9c9d4a7f4bd93e0550fa4600c3c5e4a425cf"
     },
     {
       "path": "native/KeyListener.exe",
@@ -54,13 +54,13 @@
     },
     {
       "path": "native/install-update.ps1",
-      "size": 4627,
-      "sha256": "c5adc1891e5b8fcfe56d7651755815b6279507f111262788936ec758b9376888"
+      "size": 5545,
+      "sha256": "b569baf749da70ad31fddc520075d0c6de52a7df76942e3c9361636f6d9f40c4"
     },
     {
       "path": "package.json",
       "size": 530,
-      "sha256": "677f39504a7566e691c3324c19954897263040c474638e6093eb58ea1936db0e"
+      "sha256": "75fd0b8f7d7ba12e45a5f5d9ec80edfb6824f64a1eb370d416aa69992c9068a4"
     }
   ]
 }

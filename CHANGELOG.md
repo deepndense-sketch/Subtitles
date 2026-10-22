@@ -1,3 +1,10 @@
+## 1.9.12
+
+- Restore a visible PowerShell update window alongside the existing panel notice. Display waiting, file verification, completion, and failure messages; keep the console visible briefly after finishing.
+
+- Treat touching cuts of the same source PNG as one continuous timing span. Give separated occurrences their own extra subtitles, ordered numerically and ending at each occurrence's end.
+- Detect existing extras per occurrence rather than globally, including incremental imports, cut extras, and undo/redo. Preserve all existing clip timing and import each media file into the project bin only once per batch.
+
 ## 1.9.11
 
 - Import extras into calculated equal time slots without trimming the main clip or any existing extra. Keep the last extra aligned to the reference clip end so users can move extras down to cut manually.

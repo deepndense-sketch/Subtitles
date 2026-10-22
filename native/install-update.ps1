@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 $job = $PSScriptRoot
 $status = Join-Path $job 'status.json'
+$script:lastDisplayMessage = ''
+try { $Host.UI.RawUI.WindowTitle = 'Subtitle update - keep Premiere closed until complete' } catch {}
+Write-Host 'Subtitle update installer' -ForegroundColor Cyan
+Write-Host 'Save your project and fully exit Premiere. Keep it closed until UPDATE COMPLETE appears.'
+Write-Host 'Installation normally takes a few seconds after Premiere exits.'
 function Get-UpdateHash($filePath) {
     $stream = [IO.File]::OpenRead($filePath)
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -8,6 +13,13 @@ function Get-UpdateHash($filePath) {
     finally { $stream.Dispose(); $sha.Dispose() }
 }
 function Write-UpdateStatus($state, $message) {
+    $displayMessage = $state + ': ' + $message
+    if ($script:lastDisplayMessage -ne $displayMessage) {
+        $color = if ($state -eq 'failed') { 'Red' } elseif ($state -eq 'complete') { 'Green' } else { 'Cyan' }
+        Write-Host $displayMessage -ForegroundColor $color
+        Add-Content -LiteralPath (Join-Path $job 'helper-output.log') -Value $displayMessage
+        $script:lastDisplayMessage = $displayMessage
+    }
     $tempStatus = $status + '.tmp'
     [IO.File]::WriteAllText($tempStatus, (@{state=$state;message=$message;pid=$PID;updated=([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())} | ConvertTo-Json -Compress))
     Move-Item -LiteralPath $tempStatus -Destination $status -Force
@@ -45,6 +57,7 @@ try {
     Start-Sleep -Seconds 1
     Write-UpdateStatus 'installing' 'Installing into the Subtitle CEP folder.'
     foreach ($file in $plan.files) {
+        Write-UpdateStatus 'installing' ('Copying and verifying '+$file.path)
         $destination = Join-Path $expected $file.path
         $backup = Join-Path (Join-Path $job 'backup') $file.path
         $existed = Test-Path -LiteralPath $destination
@@ -57,7 +70,7 @@ try {
         Copy-Item -LiteralPath (Join-Path (Join-Path $job 'payload') $file.path) -Destination $destination -Force
         if ((Get-UpdateHash $destination) -ne $file.sha256) { throw 'Installed file verification failed.' }
     }
-    Write-UpdateStatus 'complete' ('Subtitle '+$plan.version+' installed. Open Premiere again.')
+    Write-UpdateStatus 'complete' ('UPDATE COMPLETE - Subtitle '+$plan.version+' installed and verified. You can reopen Premiere now.')
 } catch {
     $failure = $_.Exception.Message
     $rollbackErrors = @()
