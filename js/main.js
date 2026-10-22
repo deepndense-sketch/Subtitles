@@ -248,8 +248,9 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
   $("extraConfirmCancel").disabled = false;
   $("extraConfirmCancel").textContent = preview && !preview.count ? "Close" : "Cancel";
   if (preview) {
+    const uniqueCount = preview.uniqueCount === undefined ? preview.count : preview.uniqueCount;
     if (preview.repeatedGroups) {
-      $("extraConfirmIssue").textContent = "Note: " + preview.repeatedGroups + " repeated original(s). Touching pieces share one timing span. Separate occurrences each receive their own extras.";
+      $("extraConfirmIssue").textContent = "Note: " + preview.repeatedGroups + " distinct subtitle(s) repeat at " + preview.repeatedLocations + " additional location(s). Touching cuts count as one location. Missing extras are imported at each location.";
       $("extraConfirmIssue").hidden = false;
     }
     if (preview.offlineNames) {
@@ -257,9 +258,9 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
       $("extraConfirmIssue").textContent = [$("extraConfirmIssue").textContent, warning].filter(Boolean).join(" ");
       $("extraConfirmIssue").hidden = false;
     }
-    $("extraFoundNumber").textContent = String(preview.count);
-    $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
-    $("extraConfirmPlan").textContent = preview.count ? (preview.reuseTrack ? "Empty V" + (trackIndex + 2) + " directly above V" + (trackIndex + 1) + " will be reused" : "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1)) + " to import and align " + preview.count + " extras in equal time slots within the main clip or last existing extra. Existing clips stay unchanged. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
+    $("extraFoundNumber").textContent = String(uniqueCount);
+    $("extraConfirmTitle").textContent = preview.count ? uniqueCount + " extras found" : "0 extras found";
+    $("extraConfirmPlan").textContent = preview.count ? (preview.reuseTrack ? "Empty V" + (trackIndex + 2) + " directly above V" + (trackIndex + 1) + " will be reused" : "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1)) + " to import and align " + uniqueCount + " unique extras at " + preview.count + " timeline locations in equal time slots within the main clip or last existing extra. Existing clips stay unchanged. " + preview.green + " placements green: 1 second or longer. " + preview.red + " placements red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
     $("extraConfirmQuestion").textContent = preview.count ? "Import these extras?" : "Your sequence has not been changed.";
   }
   return new Promise(resolve => {
@@ -319,11 +320,11 @@ async function importExtras() {
       selectedImportTrackIndex += 1;
       localStorage.setItem("importTrackIndex", String(selectedImportTrackIndex));
     }
-    setStatus((result.count ? "Imported and aligned " + result.count + " extra subtitles on V" + (result.trackIndex + 1) + "." : "No missing extras to import.") +
+    setStatus((result.count ? "Imported and aligned " + (result.uniqueCount === undefined ? result.count : result.uniqueCount) + " unique extra subtitles at " + result.count + " timeline locations on V" + (result.trackIndex + 1) + "." : "No missing extras to import.") +
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
       (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : "") +
       (result.offlineNames ? " Subtitle media is offline: " + result.offlineNames + "." : "") +
-      (result.repeatedGroups ? " Note: extras for " + result.repeatedGroups + " repeated original(s) were aligned separately at each occurrence." : ""), "good");
+      (result.repeatedGroups ? " Note: " + result.repeatedGroups + " distinct subtitle(s) repeat at " + result.repeatedLocations + " additional location(s); missing extras were aligned at each location." : ""), "good");
     $("currentFile").textContent = result.count ? result.groups + " groups aligned. New extras use equal slots within the main clip or last existing extra. Existing clips are unchanged; bring the extras down to cut manually. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
   } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }
   finally { busy = false; $("importExtras").disabled = false; await refreshTracks(); }

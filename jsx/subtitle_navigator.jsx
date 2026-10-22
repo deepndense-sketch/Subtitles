@@ -487,7 +487,7 @@ function psnExtraRows(sequence) {
     return map;
 }
 function psnPlanExtras(paths, originals, seen, occupied, frame, existing) {
-    var anchors={}, groups={}, names={}, plan=[], trims=[], skipped=0, unmatched=0, groupCount=0, repeatedGroups=0, i,key;
+    var anchors={}, groups={}, names={}, plan=[], trims=[], skipped=0, unmatched=0, groupCount=0, repeatedGroups=0, repeatedLocations=0, i,key;
     existing=existing || {};
     var occurrences=psnExtraOccurrences(originals);
     for(i=0;i<occurrences.length;i++) {
@@ -517,7 +517,7 @@ function psnPlanExtras(paths, originals, seen, occupied, frame, existing) {
     for(key in groups) if(groups.hasOwnProperty(key)) {
         var variants=groups[key], locations=anchors[key];
         variants.sort(function(a,b){return a.variant-b.variant || (a.name<b.name ? -1 : 1);});
-        if(locations.length>1) repeatedGroups++;
+        if(locations.length>1) { repeatedGroups++; repeatedLocations+=locations.length-1; }
         for(var location=0;location<locations.length;location++) {
             var original=locations[location], rangeEnd=original.end, limit=Infinity;
             // The next unrelated source subtitle separates this occurrence.
@@ -574,7 +574,7 @@ function psnPlanExtras(paths, originals, seen, occupied, frame, existing) {
                 throw Error("The destination is occupied at "+plan[i].start.toFixed(3)+"s for "+plan[i].name+". Choose an empty track above the originals. No clips imported.");
         }
     }
-    return {plan:plan,trims:trims,skipped:skipped,unmatched:unmatched,groups:groupCount,repeatedGroups:repeatedGroups};
+    return {plan:plan,trims:trims,skipped:skipped,unmatched:unmatched,groups:groupCount,repeatedGroups:repeatedGroups,repeatedLocations:repeatedLocations};
 }
 function psnRemoveExtraClips(track, ids) {
     for(var i=ids.length-1;i>=0;i--) {
@@ -734,6 +734,14 @@ function psnFindExtraPaths(originals) {
 function psnExtraIsGreen(p) {
     return isFinite(p.start) && isFinite(p.end) && p.end-p.start>=1-psnEpsilon;
 }
+function psnExtraUniqueCount(plan) {
+    var seen={}, count=0;
+    for(var i=0;i<plan.length;i++) {
+        var key="$"+psnNormalizePath(plan[i].path);
+        if(!seen[key]) { seen[key]=true; count++; }
+    }
+    return count;
+}
 function psnExtraPlanKey(result) {
     var parts=[];
     for(var i=0;i<result.plan.length;i++) parts.push(psnJson(result.plan[i]));
@@ -777,16 +785,16 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
             var green=0, totalPngClips=0;
             for(i=0;i<result.plan.length;i++) if(psnExtraIsGreen(result.plan[i])) green++;
             for(i=0;i<clips.numItems;i++) if(psnClipPngName(clips[i])) totalPngClips++;
-            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,reuseTrack:!!reuseTrack,offlineNames:offlineNames,count:result.plan.length,green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,skipped:result.skipped,unmatched:result.unmatched});
+            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,reuseTrack:!!reuseTrack,offlineNames:offlineNames,count:result.plan.length,uniqueCount:psnExtraUniqueCount(result.plan),green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,repeatedLocations:result.repeatedLocations,skipped:result.skipped,unmatched:result.unmatched});
         }
-        if(!result.plan.length) return psnJson({ok:true,offlineNames:offlineNames,count:0,skipped:result.skipped,unmatched:result.unmatched,groups:0,trackIndex:destinationIndex,sourceIndex:sourceIndex});
+        if(!result.plan.length) return psnJson({ok:true,offlineNames:offlineNames,count:0,uniqueCount:0,skipped:result.skipped,unmatched:result.unmatched,groups:0,trackIndex:destinationIndex,sourceIndex:sourceIndex});
         if(automatic && !reuseTrack) dest=psnCreateExtraTrack(seq,sourceIndex);
         var ids=psnPlaceExtras(dest,result.plan,before);
         psnUndoHistory.push({kind:"extras",sequenceKey:psnSequenceKey(seq),trackIndex:sourceIndex,destinationIndex:destinationIndex,before:before,after:psnSnapshot(dest),ids:ids,plan:result.plan,label:"Import and align extra subtitles"});
         psnRedoHistory=[];
         var shortened=0;
         for(i=0;i<result.plan.length;i++) if(result.plan[i].shortened) shortened++;
-        return psnJson({ok:true,createdTrack:automatic && !reuseTrack,offlineNames:offlineNames,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
+        return psnJson({ok:true,createdTrack:automatic && !reuseTrack,offlineNames:offlineNames,count:ids.length,uniqueCount:psnExtraUniqueCount(result.plan),skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,shortened:shortened,repeatedGroups:result.repeatedGroups,repeatedLocations:result.repeatedLocations,sourceIndex:sourceIndex});
     } catch(e) { return psnError(e.toString()); }
 }
 function psnExtraHistory(last,trackIndex,redo) {

@@ -545,3 +545,25 @@ assert.strictEqual(JSON.parse(changedDestination.context.psnImportDetectedExtras
 assert.strictEqual(changedDestination.created(),0);
 
 }
+
+{
+const manySpecs=[], manyFiles=[];
+for(let i=1;i<=50;i++){ manySpecs.push(['Sub '+i+'.png',(i-1)*10,i*10]); manyFiles.push('Sub '+i+'_1.png'); }
+manySpecs.push(['Sub 1.png',600,610],['Sub 1.png',620,630]);
+const many=setup([manySpecs,[]],manyFiles);
+const previewCounts=JSON.parse(many.context.psnPrepareExtras(0));
+assert.strictEqual(previewCounts.uniqueCount,50);
+assert.strictEqual(previewCounts.count,52);
+assert.strictEqual(previewCounts.repeatedGroups,1);
+assert.strictEqual(previewCounts.repeatedLocations,2);
+const placed=JSON.parse(many.context.psnImportDetectedExtras());
+assert(placed.ok,placed.error);assert.strictEqual(placed.uniqueCount,50);assert.strictEqual(placed.count,52);
+// Extra already moved down at the first occurrence must not suppress the repeat.
+const partial=setup([[['main.png',0,4],['main_1.png',4,8],['other.png',8,10],['main.png',10,18]],[]],['main_1.png']);
+const partialPreview=JSON.parse(partial.context.psnPrepareExtras(0));
+assert.strictEqual(partialPreview.uniqueCount,1);assert.strictEqual(partialPreview.count,1);
+const partialResult=JSON.parse(partial.context.psnImportDetectedExtras());
+assert(partialResult.ok,partialResult.error);
+assert.deepStrictEqual(spans(partial.tracks[1]),[['main_1.png',14,18]]);
+assert.strictEqual(partial.run().count,0);
+}

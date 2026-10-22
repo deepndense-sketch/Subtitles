@@ -78,6 +78,12 @@ vm.runInContext(`var calls=[]; callHost=async function(script){calls.push(script
   assert.strictEqual(element('extraConfirmPlan').textContent,'There are no new extra subtitles to import for this track.');
   element('extraConfirmCancel').onclick(); await searching;
   ctx.callHost=detectingHost;
+  const uniqueConfirmation=ctx.confirmExtraImport(0,52,null,{count:52,uniqueCount:50,green:52,red:0,repeatedGroups:1,repeatedLocations:2});
+  assert.strictEqual(element('extraFoundNumber').textContent,'50');
+  assert(element('extraConfirmIssue').textContent.includes('1 distinct subtitle(s) repeat at 2 additional location(s)'));
+  assert.strictEqual(element('extraConfirmTitle').textContent,'50 extras found');
+  assert(element('extraConfirmPlan').textContent.includes('50 unique extras at 52 timeline locations'));
+  element('extraConfirmCancel').onclick();await uniqueConfirmation;
   const escapeConfirmation=ctx.confirmExtraImport(10,327);
   assert.strictEqual(element('extraConfirmTrack').textContent,'V11');
   assert(element('extraConfirmPlan').textContent.includes('new V12'));

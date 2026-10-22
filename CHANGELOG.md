@@ -1,3 +1,9 @@
+## 2.0.0
+
+- Show distinct repeated subtitles and their additional timeline locations separately, so one subtitle repeated twice reports two additional locations.
+
+- Count unique extra PNG files in the extras-found heading and import result. Show timeline placement counts separately, including duration colors. Continue filling missing extras at each repeated occurrence independently.
+
 ## 1.9.14
 
 - Reuse a completely empty track directly above the main subtitles for extras. Create a track only when needed, show the destination in the preview, and preserve track selections when reusing.
