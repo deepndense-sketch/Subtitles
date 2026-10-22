@@ -501,3 +501,17 @@ assert.strictEqual(failedOccurrences.run().ok,false);
 assert.deepStrictEqual(spans(failedOccurrences.tracks[0]),[['main.png',0,4],['main.png',6,10]]);
 assert.strictEqual(failedOccurrences.tracks[1].clips.length,0);
 console.log('continuous and separate occurrence regression tests passed');
+
+// Premiere may mark the original offline even while its extra PNGs are available.
+const offlineOriginal=setup([[['Show 001.png',0,6]],[]],['Show 001_1.png']);
+offlineOriginal.items.get('Show 001.png').isOffline=()=>true;
+const offlinePreview=JSON.parse(offlineOriginal.context.psnPrepareExtras(0));
+assert(offlinePreview.ok,offlinePreview.error);
+assert.strictEqual(offlinePreview.offlineNames,'Show 001.png');
+assert.strictEqual(offlinePreview.count,1);
+const offlineImport=JSON.parse(offlineOriginal.context.psnImportDetectedExtras());
+assert(offlineImport.ok,offlineImport.error);
+assert.strictEqual(offlineImport.count,1);
+assert.strictEqual(offlineImport.offlineNames,'Show 001.png');
+assert.deepStrictEqual(spans(offlineOriginal.tracks[0]),[['Show 001.png',0,6]]);
+assert.deepStrictEqual(spans(offlineOriginal.tracks[1]),[['Show 001_1.png',3,6]]);

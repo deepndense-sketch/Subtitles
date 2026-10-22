@@ -252,6 +252,11 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
       $("extraConfirmIssue").textContent = "Note: " + preview.repeatedGroups + " repeated original(s). Touching pieces share one timing span. Separate occurrences each receive their own extras.";
       $("extraConfirmIssue").hidden = false;
     }
+    if (preview.offlineNames) {
+      const warning = "Subtitle media is offline: " + preview.offlineNames + ". You can still import available extras using the sequence timing.";
+      $("extraConfirmIssue").textContent = [$("extraConfirmIssue").textContent, warning].filter(Boolean).join(" ");
+      $("extraConfirmIssue").hidden = false;
+    }
     $("extraFoundNumber").textContent = String(preview.count);
     $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
     $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras in equal time slots within the main clip or last existing extra. Existing clips stay unchanged. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
@@ -317,6 +322,7 @@ async function importExtras() {
     setStatus((result.count ? "Imported and aligned " + result.count + " extra subtitles on V" + (result.trackIndex + 1) + "." : "No missing extras to import.") +
       " Already in sequence: " + result.skipped + ". No matching original: " + result.unmatched + "." +
       (result.shortened ? " " + result.shortened + " shorter extras kept aligned to their planned positions." : "") +
+      (result.offlineNames ? " Subtitle media is offline: " + result.offlineNames + "." : "") +
       (result.repeatedGroups ? " Note: extras for " + result.repeatedGroups + " repeated original(s) were aligned separately at each occurrence." : ""), "good");
     $("currentFile").textContent = result.count ? result.groups + " groups aligned. New extras use equal slots within the main clip or last existing extra. Existing clips are unchanged; bring the extras down to cut manually. Use Undo Subtitle Edit to remove this batch." : "Existing subtitles were left unchanged.";
   } catch (error) { if ($("extraConfirm").open) $("extraConfirm").close(); setStatus(error.message || String(error), "bad"); }

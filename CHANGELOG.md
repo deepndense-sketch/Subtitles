@@ -1,3 +1,7 @@
+## 1.9.13
+
+- Show offline subtitle names in the extra-import preview and result. Keep importing available extras using the existing sequence timing; offline originals do not block import.
+
 ## 1.9.12
 
 - Restore a visible PowerShell update window alongside the existing panel notice. Display waiting, file verification, completion, and failure messages; keep the console visible briefly after finishing.
