@@ -171,7 +171,7 @@ assert.strictEqual(badLabel.tracks[1].clips.length,0);
 const a=setup([[['Exact full name.png',2,12]],[]],['Exact full name_10.png','Exact full name_2.png','Exact full name_1.png','Other name_1.png']);
 let r=a.run(); assert.strictEqual(r.ok,true,r.error);assert.strictEqual(r.count,3);assert.strictEqual(r.unmatched,1);
 assert.deepStrictEqual(spans(a.tracks[1]),[['Exact full name_1.png',4.48,7],['Exact full name_2.png',7,9.48],['Exact full name_10.png',9.48,12]]);
-assert.deepStrictEqual(spans(a.tracks[0]),[['Exact full name.png',2,4.48]]);
+assert.deepStrictEqual(spans(a.tracks[0]),[['Exact full name.png',2,12]]);
 for(const i of a.items.values()){assert.strictEqual(i.getInPoint().seconds,2);assert.strictEqual(i.getOutPoint().seconds,7);}
 assert.strictEqual(a.run().count,0,'repeat import is idempotent'); assert.strictEqual(a.writes(),3);
 assert.strictEqual(a.undo().ok,true);assert.strictEqual(a.tracks[1].clips.length,0);
@@ -269,7 +269,7 @@ console.log('short available-duration fallback tests passed');
 const shortOriginal=setup([[['brief.png',4,5],['next.png',5,9]],[]],['brief_1.png','brief_2.png']);
 r=shortOriginal.run();assert.strictEqual(r.ok,true,r.error);
 assert.deepStrictEqual(spans(shortOriginal.tracks[1]),[['brief_1.png',4.32,4.68],['brief_2.png',4.68,5]]);
-assert.deepStrictEqual(spans(shortOriginal.tracks[0]),[['brief.png',4,4.32],['next.png',5,9]]);
+assert.deepStrictEqual(spans(shortOriginal.tracks[0]),[['brief.png',4,5],['next.png',5,9]]);
 assert.strictEqual(shortOriginal.undo().ok,true);assert.strictEqual(shortOriginal.redo().ok,true);
 const twoSeconds=setup([[['a.png',4,6]],[]],['a_1.png']);
 assert.strictEqual(twoSeconds.run().ok,true);assert.deepStrictEqual(spans(twoSeconds.tracks[1]),[['a_1.png',5,6]]);
@@ -342,7 +342,7 @@ assert.strictEqual(reusePreview.repeatedGroups,1);assert.strictEqual(reusePrevie
 let reuseImport=JSON.parse(reused.context.psnImportDetectedExtras());
 assert.strictEqual(reuseImport.ok,true,reuseImport.error);
 assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
-assert.deepStrictEqual(spans(reused.tracks[0]),[['a.png',0,10],['a.png',20,23.32]]);
+assert.deepStrictEqual(spans(reused.tracks[0]),[['a.png',0,10],['a.png',20,30]]);
 assert.strictEqual(reused.run().count,0,'repeated import does not duplicate extras');
 assert.strictEqual(reused.undo().ok,true);assert.strictEqual(reused.redo().ok,true);
 assert.deepStrictEqual(spans(reused.tracks[1]),[['a_1.png',23.32,26.68],['a_2.png',26.68,30]]);
@@ -407,11 +407,11 @@ assert.deepStrictEqual(spans(numeric.tracks[1]),[['base_1.png',2,4],['base_2.png
 
 // Incremental additions split only the last existing extra, including when it
 // sits on the destination track or is absent from the current disk listing.
-for(const sameTrack of [true,false]) {
+for(const sameTrack of [false]) {
  const seq=setup([[['base.png',0,4]],[['base_1.png',4,8]],[]],['base_2.png','base_3.png','base_4.png']);
  const result=seq.run(0,sameTrack?1:2);assert.strictEqual(result.ok,true,result.error);
  assert.deepStrictEqual(spans(seq.tracks[0]),[['base.png',0,4]]);
- assert.deepStrictEqual(spans(seq.tracks[1]).filter(c=>c[0]==='base_1.png'),[['base_1.png',4,5]]);
+ assert.deepStrictEqual(spans(seq.tracks[1]).filter(c=>c[0]==='base_1.png'),[['base_1.png',4,8]]);
  assert.deepStrictEqual(spans(seq.tracks[sameTrack?1:2]).filter(c=>c[0]!=='base_1.png'),[['base_2.png',5,6],['base_3.png',6,7],['base_4.png',7,8]]);
  assert.strictEqual(seq.undo().ok,true);
  assert.deepStrictEqual(spans(seq.tracks[1]),[['base_1.png',4,8]]);
@@ -431,8 +431,9 @@ assert.strictEqual(staleExtra.writes(),0);
 const externalEdit=setup([[['base.png',0,4]],[['base_1.png',4,8]],[]],['base_2.png']);
 assert.strictEqual(externalEdit.run(0,2).ok,true);
 externalEdit.tracks[1].clips[0].end.seconds=5;
-assert.strictEqual(externalEdit.undo().ok,false);
-assert.strictEqual(externalEdit.tracks[2].clips.length,1);
+assert.strictEqual(externalEdit.undo().ok,true);
+assert.strictEqual(externalEdit.tracks[2].clips.length,0);
+assert.strictEqual(externalEdit.tracks[1].clips[0].end.seconds,5);
 console.log('incremental extra split, rollback and stale-preview tests passed');
 
 const stages=setup([[['base.png',0,8]],[]],['base_1.png','base_2.png']);
@@ -441,12 +442,29 @@ assert.strictEqual(stages.auto().ok,false); // Generic name needs the explicit s
 assert.strictEqual(JSON.parse(stages.context.psnImportExtras(0)).ok,true);
 stages.context.psnFindExtraPaths=()=>['C:/subs/base_1.png','C:/subs/base_2.png'];
 assert.strictEqual(JSON.parse(stages.context.psnImportExtras(0)).ok,true);
-assert.deepStrictEqual(spans(stages.tracks[0]),[['base.png',0,4]]);
-assert.deepStrictEqual(spans(stages.tracks[2]),[['base_1.png',4,6]]);
+assert.deepStrictEqual(spans(stages.tracks[0]),[['base.png',0,8]]);
+assert.deepStrictEqual(spans(stages.tracks[2]),[['base_1.png',4,8]]);
 assert.deepStrictEqual(spans(stages.tracks[1]),[['base_2.png',6,8]]);
 assert.strictEqual(stages.undo().ok,true);
 assert.strictEqual(stages.undo().ok,true);
 assert.deepStrictEqual(spans(stages.tracks[0]),[['base.png',0,8]]);
 assert.strictEqual(stages.redo().ok,true);
 const secondRedo=stages.redo();assert.strictEqual(secondRedo.ok,true,secondRedo.error);
-assert.deepStrictEqual(spans(stages.tracks[2]),[['base_1.png',4,6]]);
+assert.deepStrictEqual(spans(stages.tracks[2]),[['base_1.png',4,8]]);
+
+// Existing clips are not written at all, even temporarily, during import/undo/redo.
+const untouched=setup([[['base.png',0,8]],[['base_1.png',4,8]],[]],['base_2.png','base_3.png']);
+for(const track of untouched.tracks.slice(0,2)) for(const clip of track.clips) {
+ for(const field of ['start','end','inPoint','outPoint']) {
+  const value=Object.freeze(clip[field]);
+  Object.defineProperty(clip,field,{get:()=>value,set:()=>{throw Error('Existing clip must not be edited');}});
+ }
+}
+assert.strictEqual(untouched.run(0,2).ok,true);
+assert.strictEqual(untouched.undo().ok,true);
+assert.strictEqual(untouched.redo().ok,true);
+assert.deepStrictEqual(spans(untouched.tracks[0]),[['base.png',0,8]]);
+assert.deepStrictEqual(spans(untouched.tracks[1]),[['base_1.png',4,8]]);
+const occupiedParent=setup([[['base.png',0,4]],[['base_1.png',4,8]]],['base_2.png']);
+assert.strictEqual(occupiedParent.run().ok,false,'existing destination clip must not be trimmed to make space');
+assert.strictEqual(occupiedParent.writes(),0);

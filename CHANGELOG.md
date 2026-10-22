@@ -1,3 +1,8 @@
+## 1.9.11
+
+- Import extras into calculated equal time slots without trimming the main clip or any existing extra. Keep the last extra aligned to the reference clip end so users can move extras down to cut manually.
+- Undo/redo changes only the newly imported extras. Keep destination collision protection.
+
 ## 1.9.10
 
 - Split the main clip equally with extras on the first import. Later additions split only the highest-numbered existing extra, preserving the main and earlier extras. The new highest suffix ends at the divided clip's previous end.
