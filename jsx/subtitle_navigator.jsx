@@ -756,8 +756,9 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
         if(sourceIndex%1 || destinationIndex%1 || destinationIndex<=sourceIndex) throw Error("Choose an existing destination track above the original subtitle track.");
         var source=psnGetVideoTrack(seq,sourceIndex), dest=psnGetVideoTrack(seq,destinationIndex);
         if(!source || (!automatic && !dest)) throw Error("Choose existing source and destination video tracks.");
+        var reuseTrack=automatic && dest && dest.clips.numItems===0;
         var before=automatic ? [] : psnSnapshot(dest);
-        if(!automatic) psnCheckTrack(dest,before);
+        if(!automatic || reuseTrack) psnCheckTrack(dest,before);
         var offlineNames=psnOfflineSubtitleNames(source);
         var originals=[], clips=source.clips;
         for(var i=0;i<clips.numItems;i++) {
@@ -769,23 +770,23 @@ function psnImportExtras(sourceIndex,destinationIndex,sourceIds,previewOnly,expe
 
         var result=psnPlanExtras(psnFindExtraPaths(originals),originals,psnSequencePngNames(seq),before,frame,psnExtraRows(seq));
 
-        var planKey=psnExtraPlanKey(result);
+        var planKey=psnExtraPlanKey(result)+"|destination:"+(reuseTrack ? String(dest.id) : "new");
         if(expectedKey!==undefined && expectedKey!==planKey) throw Error("The extra files or their placement changed after the search. Search again before importing.");
         if(previewOnly) {
             psnExtraDetection.previewKey=planKey;
             var green=0, totalPngClips=0;
             for(i=0;i<result.plan.length;i++) if(psnExtraIsGreen(result.plan[i])) green++;
             for(i=0;i<clips.numItems;i++) if(psnClipPngName(clips[i])) totalPngClips++;
-            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,offlineNames:offlineNames,count:result.plan.length,green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,skipped:result.skipped,unmatched:result.unmatched});
+            return psnJson({ok:true,sourceIndex:sourceIndex,totalPngClips:totalPngClips,reuseTrack:!!reuseTrack,offlineNames:offlineNames,count:result.plan.length,green:green,red:result.plan.length-green,repeatedGroups:result.repeatedGroups,skipped:result.skipped,unmatched:result.unmatched});
         }
         if(!result.plan.length) return psnJson({ok:true,offlineNames:offlineNames,count:0,skipped:result.skipped,unmatched:result.unmatched,groups:0,trackIndex:destinationIndex,sourceIndex:sourceIndex});
-        if(automatic) dest=psnCreateExtraTrack(seq,sourceIndex);
+        if(automatic && !reuseTrack) dest=psnCreateExtraTrack(seq,sourceIndex);
         var ids=psnPlaceExtras(dest,result.plan,before);
         psnUndoHistory.push({kind:"extras",sequenceKey:psnSequenceKey(seq),trackIndex:sourceIndex,destinationIndex:destinationIndex,before:before,after:psnSnapshot(dest),ids:ids,plan:result.plan,label:"Import and align extra subtitles"});
         psnRedoHistory=[];
         var shortened=0;
         for(i=0;i<result.plan.length;i++) if(result.plan[i].shortened) shortened++;
-        return psnJson({ok:true,offlineNames:offlineNames,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
+        return psnJson({ok:true,createdTrack:automatic && !reuseTrack,offlineNames:offlineNames,count:ids.length,skipped:result.skipped,unmatched:result.unmatched,groups:result.groups,trackIndex:destinationIndex,shortened:shortened,repeatedGroups:result.repeatedGroups,sourceIndex:sourceIndex});
     } catch(e) { return psnError(e.toString()); }
 }
 function psnExtraHistory(last,trackIndex,redo) {

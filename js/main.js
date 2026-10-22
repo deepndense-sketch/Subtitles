@@ -241,7 +241,7 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
   $("extraConfirmCount").textContent = issue ? "Selected subtitle track" : count + " total PNG clips on this track";
   $("extraConfirmIssue").textContent = issue || "";
   $("extraConfirmIssue").hidden = !issue;
-  $("extraConfirmPlan").textContent = "If missing extras are found, a new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align them.";
+  $("extraConfirmPlan").textContent = "If missing extras are found, the empty track directly above will be reused; otherwise a new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align them.";
   $("extraConfirmPlan").hidden = !!preview && preview.count === 0;
   $("extraConfirmAccept").disabled = false;
   $("extraConfirmAccept").hidden = preview && !preview.count;
@@ -259,7 +259,7 @@ function confirmExtraImport(trackIndex, count, issue, preview) {
     }
     $("extraFoundNumber").textContent = String(preview.count);
     $("extraConfirmTitle").textContent = preview.count ? preview.count + " extras found" : "0 extras found";
-    $("extraConfirmPlan").textContent = preview.count ? "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1) + " to import and align " + preview.count + " extras in equal time slots within the main clip or last existing extra. Existing clips stay unchanged. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
+    $("extraConfirmPlan").textContent = preview.count ? (preview.reuseTrack ? "Empty V" + (trackIndex + 2) + " directly above V" + (trackIndex + 1) + " will be reused" : "A new V" + (trackIndex + 2) + " will be created directly above V" + (trackIndex + 1)) + " to import and align " + preview.count + " extras in equal time slots within the main clip or last existing extra. Existing clips stay unchanged. " + preview.green + " green: 1 second or longer. " + preview.red + " red: shorter than 1 second." : "There are no new extra subtitles to import for this track.";
     $("extraConfirmQuestion").textContent = preview.count ? "Import these extras?" : "Your sequence has not been changed.";
   }
   return new Promise(resolve => {
@@ -315,7 +315,7 @@ async function importExtras() {
     if (!result.ok) throw new Error(result.error);
     selectedTrackIndex = result.sourceIndex;
     localStorage.setItem("videoTrackIndex", String(selectedTrackIndex));
-    if (result.count && selectedImportTrackIndex > result.sourceIndex) {
+    if (result.createdTrack && selectedImportTrackIndex > result.sourceIndex) {
       selectedImportTrackIndex += 1;
       localStorage.setItem("importTrackIndex", String(selectedImportTrackIndex));
     }

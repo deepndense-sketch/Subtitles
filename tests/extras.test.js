@@ -515,3 +515,33 @@ assert.strictEqual(offlineImport.count,1);
 assert.strictEqual(offlineImport.offlineNames,'Show 001.png');
 assert.deepStrictEqual(spans(offlineOriginal.tracks[0]),[['Show 001.png',0,6]]);
 assert.deepStrictEqual(spans(offlineOriginal.tracks[1]),[['Show 001_1.png',3,6]]);
+
+// Reuse the immediately adjacent empty track, including undo/redo.
+{
+const reuse=setup([[['base.png',0,8]],[],[['safe.png',20,30]]],['base_1.png']);
+const emptyTrack=reuse.tracks[1];
+const reusePreview=JSON.parse(reuse.context.psnPrepareExtras(0));
+assert.strictEqual(reusePreview.reuseTrack,true);
+const reuseResult=JSON.parse(reuse.context.psnImportDetectedExtras());
+assert(reuseResult.ok,reuseResult.error);
+assert.strictEqual(reuseResult.createdTrack,false);
+assert.strictEqual(reuse.created(),0);
+assert.strictEqual(reuse.tracks[1],emptyTrack);
+assert.strictEqual(reuse.tracks.length,3);
+assert.strictEqual(reuse.undo().ok,true);
+assert.strictEqual(reuse.redo().ok,true);
+const lockedEmpty=setup([[['base.png',0,8]],[]],['base_1.png']);
+lockedEmpty.tracks[1].isLocked=()=>true;
+assert.strictEqual(JSON.parse(lockedEmpty.context.psnPrepareExtras(0)).ok,false);
+assert.strictEqual(lockedEmpty.writes(),0);
+const absentAbove=setup([[['base.png',0,8]]],['base_1.png']);
+assert.strictEqual(JSON.parse(absentAbove.context.psnPrepareExtras(0)).reuseTrack,false);
+assert.strictEqual(JSON.parse(absentAbove.context.psnImportDetectedExtras()).createdTrack,true);
+assert.strictEqual(absentAbove.created(),1);
+const changedDestination=setup([[['base.png',0,8]],[]],['base_1.png']);
+JSON.parse(changedDestination.context.psnPrepareExtras(0));
+changedDestination.tracks[1].clips.push(changedDestination.tracks[0].clips[0]);
+assert.strictEqual(JSON.parse(changedDestination.context.psnImportDetectedExtras()).ok,false);
+assert.strictEqual(changedDestination.created(),0);
+
+}

@@ -1,3 +1,7 @@
+## 1.9.14
+
+- Reuse a completely empty track directly above the main subtitles for extras. Create a track only when needed, show the destination in the preview, and preserve track selections when reusing.
+
 ## 1.9.13
 
 - Show offline subtitle names in the extra-import preview and result. Keep importing available extras using the existing sequence timing; offline originals do not block import.
